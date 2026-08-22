@@ -1,107 +1,188 @@
-import SwiftUI
 import CoreLocation
+import SwiftUI
 
 struct NearbyComparisonView: View {
     @ObservedObject var model: JellyMapViewModel
     let userCoordinate: CLLocationCoordinate2D
     @Environment(\.dismiss) private var dismiss
 
-    private var nearby: [Beach] { model.nearby(to: userCoordinate) }
-    private var best: Beach? { model.bestNearby(to: userCoordinate) }
+    private var nearbyBeaches: [Beach] {
+        model.nearby(to: userCoordinate, count: 4)
+    }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                AppColor.LegacyTracker.navy.ignoresSafeArea()
-                ScrollView {
-                    VStack(spacing: 14) {
-                        recommendation
-                        HStack {
-                            Text("AUTO: NEAREST \(nearby.count)").font(.caption.monospaced().bold()).foregroundStyle(AppColor.LegacyTracker.cyan)
-                            Spacer()
-                            Text(model.updatedText).font(.caption2.monospaced()).foregroundStyle(AppColor.Text.secondary)
-                        }
-                        ForEach(nearby) { beach in comparisonCard(beach) }
-                        Text("! = mock/fallback only · REGION ESTIMATE = official NIFS area, not an exact coordinate · OUTDATED/NO DATA are shown separately. Not an official safety advisory.")
-                            .font(.caption).foregroundStyle(AppColor.Text.secondary).padding(.vertical, 6)
-                    }
-                    .padding()
-                }
-            }
-            .navigationTitle("Nearby Comparison")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Close") { dismiss() }
-                }
+        ZStack(alignment: .top) {
+            AppColor.Fill.screenBackground.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                header
+                    .ignoresSafeArea(edges: .top)
+                beachList
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
     }
 
-    private var recommendation: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "checkmark.shield.fill").font(.title2).foregroundStyle(AppColor.LegacyTracker.seafoam)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(best.map {
-                    model.recommendationUsesMockData(for: $0)
-                        ? "Demo comparison: \($0.displayName)"
-                        : "Lowest modeled impact: \($0.displayName)"
-                } ?? "Comparing nearby beaches…")
-                    .font(.headline)
-                if let best {
-                    Text(model.recommendationReason(for: best, from: userCoordinate))
-                        .font(.subheadline).foregroundStyle(AppColor.Text.secondary)
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 13) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(AppColor.Text.normal)
+                        .frame(width: 40, height: 40)
+                        .background(AppColor.Fill.Button.normalMedium, in: .circle)
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close comparison")
+
+                Text("Compare Nearby Beaches")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(AppColor.Text.white)
             }
-            Spacer()
+            .padding(.top, 77)
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 4) {
+                Image("IconNearMe")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+                Text("77, Cheongam-ro, Nam-gu, Pohang-si")
+                    .font(.system(size: 14, weight: .regular))
+            }
+            .foregroundStyle(AppColor.Text.white)
+            .padding(.bottom, 12)
+
+            Text("Beaches nearby you")
+                .font(.system(size: 27, weight: .bold))
+                .foregroundStyle(AppColor.Text.white)
+                .padding(.bottom, 22)
         }
-        .padding(14).trackerPanel(cornerRadius: 12)
+        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity, minHeight: 231, maxHeight: 231, alignment: .topLeading)
+        .background(AppColor.Fill.Button.accent)
+        .clipShape(.rect(bottomLeadingRadius: 30, bottomTrailingRadius: 30))
     }
 
-    private func comparisonCard(_ beach: Beach) -> some View {
-        let risk = model.risk(for: beach)
-        let isBest = best?.id == beach.id
-        return VStack(spacing: 12) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack {
-                        Text(beach.displayName).font(.headline)
-                        if isBest {
-                            Text("BEST PICK").font(.caption2.monospaced().bold()).foregroundStyle(AppColor.LegacyTracker.navy)
-                                .padding(.horizontal, 5).padding(.vertical, 3)
-                                .background(AppColor.LegacyTracker.cream, in: .rect(cornerRadius: 3))
-                        }
-                    }
-                    Text("\(beach.displayCity) · \(model.annotated(String(format: "%.1f km", model.distance(from: userCoordinate, to: beach.coordinate)), for: beach, fields: .location))")
-                        .font(.caption).foregroundStyle(AppColor.Text.secondary)
+    private var beachList: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                ForEach(nearbyBeaches) { beach in
+                    ComparisonBeachCard(
+                        beach: beach,
+                        risk: model.risk(for: beach),
+                        summary: summary(for: beach),
+                        onDisclosureTap: {}
+                    )
                 }
-                Spacer()
-                Text(model.markedRisk(for: beach).uppercased()).font(.caption.monospaced().bold()).foregroundStyle(AppColor.LegacyTracker.navy)
-                    .padding(.horizontal, 7).padding(.vertical, 5)
-                    .background(AppColor.risk(risk), in: .rect(cornerRadius: 4))
             }
-            Divider().overlay(AppColor.LegacyTracker.cyan.opacity(0.35))
-            HStack(spacing: 0) {
-                comparisonMetric("IMPACT", model.markedImpact(for: beach))
-                comparisonMetric("SIGHTINGS", model.annotated(beach.recentJellyfish ? "\(beach.recentSightingsCount) recent" : "None", for: beach, fields: .jellyfishSightings))
-                comparisonMetric("CURRENT", model.annotated(String(format: "%.2f m/s", beach.marine.currentSpeed), for: beach, fields: .current))
-                comparisonMetric("SURF", model.annotated(beach.surfStatus, for: beach, fields: .waveHeight, .baseRisk))
-            }
-            HStack {
-                Text("Recommended: \(model.annotated(beach.recommendedVisitTime, for: beach, fields: .baseRisk))").font(.caption.bold())
-                Spacer()
-                Text(model.updatedText).font(.caption2).foregroundStyle(AppColor.Text.secondary)
-            }
+            .padding(.horizontal, 20)
+            .padding(.top, 36)
+            .padding(.bottom, 34)
         }
-        .padding(14).trackerPanel(cornerRadius: 12)
+        .scrollIndicators(.hidden)
     }
 
-    private func comparisonMetric(_ label: String, _ value: String) -> some View {
-        VStack(spacing: 4) {
-            Text(label).font(.caption2.monospaced().bold()).foregroundStyle(AppColor.LegacyTracker.cyan)
-            Text(value).font(.caption.bold()).lineLimit(1).minimumScaleFactor(0.65)
+    private func summary(for beach: Beach) -> String {
+        let riskPhrase: String
+        switch model.risk(for: beach) {
+        case .good:
+            riskPhrase = "low"
+        case .caution:
+            riskPhrase = "moderate"
+        case .later:
+            riskPhrase = "high"
+        case .unknown:
+            riskPhrase = "unclear"
         }
-        .frame(maxWidth: .infinity)
+
+        let wavePhrase = beach.marine.waveHeight <= 1.2 ? "calm" : "active"
+        return "For 12 hours, the chance of jellyfish intrusion is \(riskPhrase), and the waves are \(wavePhrase)."
     }
+}
+
+private struct ComparisonBeachCard: View {
+    let beach: Beach
+    let risk: RiskLevel
+    let summary: String
+    let onDisclosureTap: () -> Void
+
+    var body: some View {
+        HStack(spacing: 16) {
+            jellyfishIcon
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(beach.displayName)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(AppColor.Text.normal)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                Text(summary)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(AppColor.Text.secondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            Button(action: onDisclosureTap) {
+                Image("IconChevronRight")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 18, height: 18)
+                    .foregroundStyle(AppColor.Icon.secondary)
+                    .frame(width: 32, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open beach detail")
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 9)
+        .frame(maxWidth: .infinity, minHeight: 118, alignment: .center)
+        .background(cardFill, in: .rect(cornerRadius: 16))
+    }
+
+    private var jellyfishIcon: some View {
+        Image(assetName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 55, height: 55)
+    }
+
+    private var assetName: String {
+        switch risk {
+        case .good, .unknown:
+            "JellyfishGood"
+        case .caution:
+            "JellyfishCaution"
+        case .later:
+            "JellyfishHigh"
+        }
+    }
+
+    private var cardFill: Color {
+        switch risk {
+        case .good, .unknown:
+            AppColor.Fill.Comparison.goodCard
+        case .caution:
+            AppColor.Fill.Comparison.cautionCard
+        case .later:
+            AppColor.Fill.Comparison.highCard
+        }
+    }
+
+}
+
+#Preview("Nearby Comparison") {
+    NearbyComparisonView(
+        model: JellyMapViewModel(provider: MockOceanDataProvider()),
+        userCoordinate: LocationManager.fallback
+    )
 }

@@ -6,6 +6,8 @@ struct MainMapSystemSearchSheet: View {
     let isSearchFocused: Bool
     let selectedBeach: Beach?
     let searchExpanded: Bool
+    let isCollapsed: Bool
+    let isDetailExpanded: Bool
     let filteredBeaches: [Beach]
     let riskForBeach: (Beach) -> RiskLevel
     let markedRiskForBeach: (Beach) -> String
@@ -27,10 +29,25 @@ struct MainMapSystemSearchSheet: View {
                 .padding(.horizontal, 20)
 
             if let selectedBeach {
-                BeachResultSummary(content: summaryForBeach(selectedBeach))
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                let content = summaryForBeach(selectedBeach)
+                if isCollapsed {
+                    BeachCollapsedPreview(content: content)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 17)
+                        .transition(.opacity)
+                } else {
+                    BeachResultSummary(content: content)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
+                if isDetailExpanded {
+                    BeachResultExpandedDetails(content: content)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             } else if searchExpanded && !searchText.isEmpty {
                 searchResults
                     .padding(.horizontal, 20)
@@ -39,6 +56,7 @@ struct MainMapSystemSearchSheet: View {
 
             Spacer(minLength: 0)
         }
+        .id(contentIdentity)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background {
@@ -46,8 +64,10 @@ struct MainMapSystemSearchSheet: View {
                 .fill(.ultraThinMaterial)
                 .overlay {
                     UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38)
-                        .fill(AppColor.Fill.elevatedSurface)
+                        .fill(AppColor.Fill.searchSheetSurface)
                 }
+                .padding(.bottom, -80)
+                .ignoresSafeArea(edges: .bottom)
         }
         .padding(.horizontal, isSearchFocused ? 6 : 0)
         .animation(.interactiveSpring(response: 0.34, dampingFraction: 0.88), value: isSearchFocused)
@@ -121,7 +141,116 @@ struct MainMapSystemSearchSheet: View {
     private var searchFieldTopGap: CGFloat { searchFieldTopFromSheet - 7 - 5 }
     private var searchFieldTopFromSheet: CGFloat { 41 }
     private var searchFieldFill: Color {
-        isSearchFocused ? AppColor.Fill.secondary : AppColor.Fill.translucentControl
+        AppColor.Fill.secondary
+    }
+
+    private var contentIdentity: String {
+        [
+            isCollapsed ? "collapsed" : "raised",
+            isDetailExpanded ? "detail" : "summary",
+            selectedBeach?.id ?? "search",
+            searchExpanded ? "results" : "idle"
+        ].joined(separator: "-")
+    }
+}
+
+private struct BeachCollapsedPreview: View {
+    let content: BeachResultSummaryContent
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(content.risk.shortTitle.uppercased())
+                .font(.custom("Helvetica", size: 12, relativeTo: .caption))
+                .foregroundStyle(AppColor.risk(content.risk))
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(AppColor.risk(content.risk).opacity(0.18), in: .capsule)
+
+            Text(content.beach.displayName)
+                .font(.custom("Helvetica-Bold", size: 16, relativeTo: .subheadline))
+                .foregroundStyle(AppColor.Text.normal)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+        }
+        .frame(height: 42, alignment: .top)
+        .opacity(0.86)
+        .allowsHitTesting(false)
+    }
+}
+
+private struct BeachResultExpandedDetails: View {
+    let content: BeachResultSummaryContent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 17) {
+            Text(safetySummary)
+                .font(.custom("Helvetica-Bold", size: 18, relativeTo: .headline))
+                .foregroundStyle(AppColor.Text.white)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AppColor.Fill.Button.accent, in: .rect(cornerRadius: 14))
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Best Time")
+                    .font(.custom("Helvetica-Bold", size: 14, relativeTo: .caption))
+                    .foregroundStyle(AppColor.Text.caption)
+                Text("13:00~18:00")
+                    .font(.custom("Helvetica", size: 18, relativeTo: .body))
+                    .foregroundStyle(AppColor.Text.normal)
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Activity Status")
+                    .font(.custom("Helvetica-Bold", size: 14, relativeTo: .caption))
+                    .foregroundStyle(AppColor.Text.caption)
+
+                HStack(spacing: 9) {
+                    BeachActivityChip(title: "SAFE", fill: AppColor.Fill.StatusChip.safe, foreground: AppColor.Status.safe)
+                    BeachActivityChip(title: "Surf", fill: AppColor.Fill.StatusChip.surf, foreground: AppColor.Status.surf)
+                    BeachActivityChip(title: "Fish", fill: AppColor.Fill.StatusChip.fish, foreground: AppColor.Status.fish)
+                }
+            }
+        }
+    }
+
+    private var safetySummary: String {
+        "For 12 hours, the chance of jellyfish intrusion is \(jellyfishPhrase), and the waves are \(wavePhrase)."
+    }
+
+    private var jellyfishPhrase: String {
+        switch content.risk {
+        case .good:
+            "low"
+        case .caution:
+            "moderate"
+        case .later:
+            "high"
+        case .unknown:
+            "being checked"
+        }
+    }
+
+    private var wavePhrase: String {
+        content.beach.marine.waveHeight < 0.7 ? "calm" : "active"
+    }
+}
+
+private struct BeachActivityChip: View {
+    let title: String
+    let fill: Color
+    let foreground: Color
+
+    var body: some View {
+        Text(title)
+            .font(.custom("Helvetica", size: 14, relativeTo: .caption))
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 11)
+            .frame(height: 31)
+            .background(fill, in: .capsule)
     }
 }
 
@@ -136,6 +265,8 @@ private struct MainMapSystemSearchSheetPreview: View {
             isSearchFocused: true,
             selectedBeach: nil,
             searchExpanded: true,
+            isCollapsed: false,
+            isDetailExpanded: false,
             filteredBeaches: MockOceanDataProvider.beaches,
             riskForBeach: { $0.baseRisk },
             markedRiskForBeach: { $0.baseRisk.shortTitle },

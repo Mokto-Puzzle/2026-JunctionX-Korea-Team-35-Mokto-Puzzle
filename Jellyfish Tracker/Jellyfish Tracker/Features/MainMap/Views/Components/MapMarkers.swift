@@ -71,24 +71,26 @@ extension Beach {
 }
 
 struct MainMapJellyfishMarker: View {
-    let status: String?
-    let mock: Bool
+    let risk: RiskLevel
+    let facesRight: Bool
 
     var body: some View {
-        VStack(spacing: 4) {
-            if let status {
-                Text(status).font(.caption2.weight(.bold)).foregroundStyle(AppColor.LegacyTracker.coral)
-            } else if mock {
-                Text("!").font(.caption.weight(.bold)).foregroundStyle(AppColor.LegacyTracker.coral)
-            }
-            Image("JellyMascot")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 45, height: 45)
-                .padding(9)
-                .background(AppColor.LegacyTracker.coral.opacity(0.88), in: .circle)
-                .overlay { Circle().stroke(AppColor.LegacyTracker.coral.opacity(0.30), lineWidth: 10) }
-                .shadow(color: AppColor.LegacyTracker.coral.opacity(0.24), radius: 8)
+        Image(assetName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 68, height: 68)
+            .scaleEffect(x: facesRight ? 1 : -1, y: 1, anchor: .center)
+            .shadow(color: AppColor.risk(risk).opacity(0.24), radius: 8)
+    }
+
+    private var assetName: String {
+        switch risk {
+        case .good, .unknown:
+            "JellyfishGood"
+        case .caution:
+            "JellyfishCaution"
+        case .later:
+            "JellyfishHigh"
         }
     }
 }
@@ -111,7 +113,7 @@ struct MainMapJellyfishMarker: View {
             showsRadius: false,
             temperature: nil
         )
-        MainMapJellyfishMarker(status: nil, mock: false)
+        MainMapJellyfishMarker(risk: .later, facesRight: false)
     }
     .padding()
     .background(AppColor.Preview.markerBackdrop)

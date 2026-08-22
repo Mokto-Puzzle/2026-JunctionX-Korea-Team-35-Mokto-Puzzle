@@ -87,9 +87,11 @@ struct TimelineSlider: View {
             Slider(value: Binding(
                 get: { value },
                 set: { newValue in
-                    withAnimation(.linear(duration: 0.12)) { value = newValue }
+                    let snappedValue = Self.snappedForecastHour(newValue)
+                    guard snappedValue != value else { return }
+                    value = snappedValue
                 }
-            ), in: -24...24, step: 1)
+            ), in: -24...24, step: 2)
                 .tint(AppColor.Text.accent)
                 .accessibilityLabel("Jellyfish timeline")
             Text("+24h")
@@ -100,6 +102,10 @@ struct TimelineSlider: View {
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
         .background(AppColor.Fill.Button.normalMedium, in: .capsule)
+    }
+
+    private static func snappedForecastHour(_ value: Double) -> Double {
+        min(max((value / 2).rounded() * 2, -24), 24)
     }
 }
 
