@@ -247,6 +247,57 @@ final class JellyfishPredictionEngineTests: XCTestCase {
         XCTAssertEqual(value.waterTemperature, 15, accuracy: 0.001)
     }
 
+    func testOppositeVectorsInterpolateToSlackWater() throws {
+        let coordinate = CLLocationCoordinate2D(latitude: 36.0, longitude: 129.4)
+        let field = SpatiotemporalOceanField(samples: [
+            .init(coordinate: coordinate, hour: 0, forcing: .init(
+                currentDirection: 90, currentSpeed: 1,
+                windDirection: 0, windSpeed: 8,
+                waveHeight: 1, waterTemperature: 20
+            )),
+            .init(coordinate: coordinate, hour: 2, forcing: .init(
+                currentDirection: 270, currentSpeed: 1,
+                windDirection: 180, windSpeed: 8,
+                waveHeight: 3, waterTemperature: 24
+            ))
+        ])
+
+        let midpoint = try XCTUnwrap(field.forcing(at: coordinate, hour: 1))
+        XCTAssertEqual(midpoint.currentSpeed, 0, accuracy: 1e-10)
+        XCTAssertEqual(midpoint.windSpeed, 0, accuracy: 1e-10)
+        XCTAssertEqual(midpoint.waveHeight, 2, accuracy: 1e-10)
+    }
+
+    func testPublishedOceanSamplesDoNotExtrapolateInTime() {
+        let coordinate = CLLocationCoordinate2D(latitude: 36.0, longitude: 129.4)
+        let forcing = OceanForcing(
+            currentDirection: 45, currentSpeed: 0.5,
+            windDirection: 90, windSpeed: 3,
+            waveHeight: 1.2, waterTemperature: 21
+        )
+        let field = SpatiotemporalOceanField(samples: [
+            .init(coordinate: coordinate, hour: -6, forcing: forcing),
+            .init(coordinate: coordinate, hour: 12, forcing: forcing)
+        ])
+
+        XCTAssertNil(field.forcing(at: coordinate, hour: -6.001))
+        XCTAssertNotNil(field.forcing(at: coordinate, hour: -6))
+        XCTAssertNotNil(field.forcing(at: coordinate, hour: 12))
+        XCTAssertNil(field.forcing(at: coordinate, hour: 12.001))
+    }
+
+    func testConstantOceanFieldRemainsAvailableAcrossSimulation() {
+        let coordinate = CLLocationCoordinate2D(latitude: 36.0, longitude: 129.4)
+        let field = SpatiotemporalOceanField(constant: .init(
+            currentDirection: 90, currentSpeed: 0.4,
+            windDirection: 0, windSpeed: 0,
+            waveHeight: 0.5, waterTemperature: 20
+        ), around: coordinate)
+
+        XCTAssertNotNil(field.forcing(at: coordinate, hour: -75))
+        XCTAssertNotNil(field.forcing(at: coordinate, hour: 24))
+    }
+
     func testParticlesBeachAtLandBoundaryAndDoNotCrossLand() throws {
         struct WestIsLand: CoastlineMask {
             func isWater(_ coordinate: CLLocationCoordinate2D) -> Bool { coordinate.longitude >= 129.40 }

@@ -41,33 +41,58 @@ struct OceanFieldSample: Hashable {
     }
 }
 
+enum OceanFieldTemporalPolicy {
+    case strict
+    case boundedPersistence(validHours: ClosedRange<Double>)
+}
+
 /// Interpolates the ocean state at every particle coordinate and forecast time.
 struct SpatiotemporalOceanField {
     let samples: [OceanFieldSample]
     let maximumSpatialExtrapolationMeters: Double
+    private let isTemporallyConstant: Bool
+    private let temporalPolicy: OceanFieldTemporalPolicy
 
-    init(samples: [OceanFieldSample], maximumSpatialExtrapolationMeters: Double = 120_000) {
+    init(
+        samples: [OceanFieldSample],
+        maximumSpatialExtrapolationMeters: Double = 120_000,
+        temporalPolicy: OceanFieldTemporalPolicy = .strict
+    ) {
         self.samples = samples
         self.maximumSpatialExtrapolationMeters = maximumSpatialExtrapolationMeters
+        isTemporallyConstant = false
+        self.temporalPolicy = temporalPolicy
     }
 
     init(constant forcing: OceanForcing, around coordinate: CLLocationCoordinate2D) {
-        self.init(
-            samples: [.init(coordinate: coordinate, hour: 0, forcing: forcing)],
-            maximumSpatialExtrapolationMeters: .greatestFiniteMagnitude
-        )
+        samples = [.init(coordinate: coordinate, hour: 0, forcing: forcing)]
+        maximumSpatialExtrapolationMeters = .greatestFiniteMagnitude
+        isTemporallyConstant = true
+        temporalPolicy = .strict
     }
 
     func forcing(at coordinate: CLLocationCoordinate2D, hour: Double) -> OceanForcing? {
         guard !samples.isEmpty else { return nil }
         let hours = Array(Set(samples.map(\.hour))).sorted()
         guard let first = hours.first, let last = hours.last else { return nil }
-        let lowerHour = hours.last(where: { $0 <= hour }) ?? first
-        let upperHour = hours.first(where: { $0 >= hour }) ?? last
+        if isTemporallyConstant {
+            return spatialForcing(at: coordinate, hour: first)
+        }
+        switch temporalPolicy {
+        case .strict:
+            guard hour >= first, hour <= last else { return nil }
+        case let .boundedPersistence(validHours):
+            guard validHours.contains(hour) else { return nil }
+            if hour <= first { return spatialForcing(at: coordinate, hour: first) }
+            if hour >= last { return spatialForcing(at: coordinate, hour: last) }
+        }
+
+        guard let lowerHour = hours.last(where: { $0 <= hour }),
+              let upperHour = hours.first(where: { $0 >= hour }) else { return nil }
         guard let lower = spatialForcing(at: coordinate, hour: lowerHour) else { return nil }
-        guard lowerHour != upperHour,
-              let upper = spatialForcing(at: coordinate, hour: upperHour) else { return lower }
-        let fraction = min(max((hour - lowerHour) / (upperHour - lowerHour), 0), 1)
+        guard lowerHour != upperHour else { return lower }
+        guard let upper = spatialForcing(at: coordinate, hour: upperHour) else { return nil }
+        let fraction = (hour - lowerHour) / (upperHour - lowerHour)
         return Self.weighted([lower, upper], weights: [1 - fraction, fraction])
     }
 
@@ -88,18 +113,26 @@ struct SpatiotemporalOceanField {
         func scalar(_ keyPath: KeyPath<OceanForcing, Double>) -> Double {
             zip(values, weights).reduce(0) { $0 + $1.0[keyPath: keyPath] * $1.1 }
         }
-        func direction(_ keyPath: KeyPath<OceanForcing, Double>) -> Double {
+        func vector(
+            direction directionKeyPath: KeyPath<OceanForcing, Double>,
+            speed speedKeyPath: KeyPath<OceanForcing, Double>
+        ) -> (direction: Double, speed: Double) {
             let vector = zip(values, weights).reduce(into: (east: 0.0, north: 0.0)) { result, item in
-                let radians = item.0[keyPath: keyPath] * .pi / 180
-                result.east += sin(radians) * item.1
-                result.north += cos(radians) * item.1
+                let radians = item.0[keyPath: directionKeyPath] * .pi / 180
+                let weightedSpeed = item.0[keyPath: speedKeyPath] * item.1
+                result.east += sin(radians) * weightedSpeed
+                result.north += cos(radians) * weightedSpeed
             }
+            let speed = hypot(vector.east, vector.north)
+            guard speed > 1e-12 else { return (direction: 0, speed: 0) }
             let degrees = atan2(vector.east, vector.north) * 180 / .pi
-            return degrees >= 0 ? degrees : degrees + 360
+            return (direction: degrees >= 0 ? degrees : degrees + 360, speed: speed)
         }
+        let current = vector(direction: \.currentDirection, speed: \.currentSpeed)
+        let wind = vector(direction: \.windDirection, speed: \.windSpeed)
         return OceanForcing(
-            currentDirection: direction(\.currentDirection), currentSpeed: scalar(\.currentSpeed),
-            windDirection: direction(\.windDirection), windSpeed: scalar(\.windSpeed),
+            currentDirection: current.direction, currentSpeed: current.speed,
+            windDirection: wind.direction, windSpeed: wind.speed,
             waveHeight: scalar(\.waveHeight), waterTemperature: scalar(\.waterTemperature)
         )
     }
@@ -282,7 +315,7 @@ struct JellyfishPredictionEngine {
                 )
                 let wind = velocity(
                     speed: forcing.windSpeed * windage,
-                    direction: forcing.windDirection + 180 + particles[index].directionBias * 0.35
+                    direction: forcing.windDirection + particles[index].directionBias * 0.35
                 )
                 let sigma = sqrt(2 * horizontalDiffusivity(forcing) * stepSeconds)
                 let next = (
