@@ -6,7 +6,18 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		C2EC6EF28AF84D34B24AF3C0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F6FD0574303953BC000546FA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F6FD057B303953BC000546FA;
+			remoteInfo = "Jellyfish Tracker";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		583401BF58D445EFB8DDC27B /* Jellyfish TrackerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Jellyfish TrackerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F6FD057C303953BC000546FA /* Jellyfish Tracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Jellyfish Tracker.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -21,9 +32,17 @@
 				"DesignSystem/Components/.gitkeep-design-components",
 				"DesignSystem/Modifiers/.gitkeep-design-modifiers",
 				"DesignSystem/Tokens/.gitkeep-design-tokens",
+				DesignSystem/Tokens/Raw/primitive.tokens.json,
+				DesignSystem/Tokens/Raw/semantic.tokens.json,
 				"Domain/Models/.gitkeep-domain-models",
-				"Features/JellyfishMap/ViewModels/.gitkeep-map-viewmodels",
-				"Features/JellyfishMap/Views/Components/.gitkeep-map-components",
+				"Features/BeachComparison/ViewModels/.gitkeep-beach-comparison-viewmodels",
+				"Features/BeachDetail/ViewModels/.gitkeep-beach-detail-viewmodels",
+				"Features/BeachSearch/ViewModels/.gitkeep-beach-search-viewmodels",
+				"Features/BeachSearch/Views/.gitkeep-beach-search-views",
+				"Features/OceanLayerFilter/ViewModels/.gitkeep-ocean-layer-filter-viewmodels",
+				"Features/OceanLayerFilter/Views/.gitkeep-ocean-layer-filter-views",
+				"Features/Timeline/ViewModels/.gitkeep-timeline-viewmodels",
+				"Features/Timeline/Views/.gitkeep-timeline-views",
 				"Shared/Extensions/.gitkeep-shared-extensions",
 				"Shared/Utilities/.gitkeep-shared-utilities",
 			);
@@ -32,6 +51,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		C52A9A4D553B41628F37F670 /* Jellyfish TrackerTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Jellyfish TrackerTests";
+			sourceTree = "<group>";
+		};
 		F6FD057E303953BC000546FA /* Jellyfish Tracker */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -43,6 +67,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		DD0AF2EB4AF941DC939643C5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F6FD0579303953BC000546FA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -57,6 +88,7 @@
 			isa = PBXGroup;
 			children = (
 				F6FD057E303953BC000546FA /* Jellyfish Tracker */,
+				C52A9A4D553B41628F37F670 /* Jellyfish TrackerTests */,
 				F6FD057D303953BC000546FA /* Products */,
 			);
 			sourceTree = "<group>";
@@ -65,6 +97,7 @@
 			isa = PBXGroup;
 			children = (
 				F6FD057C303953BC000546FA /* Jellyfish Tracker.app */,
+				583401BF58D445EFB8DDC27B /* Jellyfish TrackerTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -72,6 +105,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		9957B24C0E414C59A10EF95B /* Jellyfish TrackerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 58E6711809E346099A2960C3 /* Build configuration list for PBXNativeTarget "Jellyfish TrackerTests" */;
+			buildPhases = (
+				F55D4E890B3144B4B4884CF3 /* Sources */,
+				DD0AF2EB4AF941DC939643C5 /* Frameworks */,
+				E7FC0804D8904C0787A9CB91 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AFA1BF0FF3134D0392E3A7D9 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C52A9A4D553B41628F37F670 /* Jellyfish TrackerTests */,
+			);
+			name = "Jellyfish TrackerTests";
+			packageProductDependencies = (
+			);
+			productName = "Jellyfish TrackerTests";
+			productReference = 583401BF58D445EFB8DDC27B /* Jellyfish TrackerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		F6FD057B303953BC000546FA /* Jellyfish Tracker */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = F6FD0587303953BD000546FA /* Build configuration list for PBXNativeTarget "Jellyfish Tracker" */;
@@ -104,6 +160,10 @@
 				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
+					9957B24C0E414C59A10EF95B = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = F6FD057B303953BC000546FA;
+					};
 					F6FD057B303953BC000546FA = {
 						CreatedOnToolsVersion = 26.6;
 					};
@@ -124,11 +184,19 @@
 			projectRoot = "";
 			targets = (
 				F6FD057B303953BC000546FA /* Jellyfish Tracker */,
+				9957B24C0E414C59A10EF95B /* Jellyfish TrackerTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		E7FC0804D8904C0787A9CB91 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F6FD057A303953BC000546FA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -139,6 +207,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		F55D4E890B3144B4B4884CF3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F6FD0578303953BC000546FA /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -148,7 +223,61 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		AFA1BF0FF3134D0392E3A7D9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F6FD057B303953BC000546FA /* Jellyfish Tracker */;
+			targetProxy = C2EC6EF28AF84D34B24AF3C0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		111687AD1B624F26BC7E20C4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KF28DDXC26;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "purple.Jellyfish-TrackerTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Jellyfish Tracker.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Jellyfish Tracker";
+			};
+			name = Release;
+		};
+		BB4A1A8DCDB24003AFB76390 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KF28DDXC26;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "purple.Jellyfish-TrackerTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Jellyfish Tracker.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Jellyfish Tracker";
+			};
+			name = Debug;
+		};
 		F6FD0585303953BD000546FA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -280,6 +409,7 @@
 				DEVELOPMENT_TEAM = S2BQ74XKL9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location is used to show and compare the nearest beaches.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -312,6 +442,7 @@
 				DEVELOPMENT_TEAM = S2BQ74XKL9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location is used to show and compare the nearest beaches.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -337,6 +468,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		58E6711809E346099A2960C3 /* Build configuration list for PBXNativeTarget "Jellyfish TrackerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BB4A1A8DCDB24003AFB76390 /* Debug */,
+				111687AD1B624F26BC7E20C4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		F6FD0577303953BC000546FA /* Build configuration list for PBXProject "Jellyfish Tracker" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

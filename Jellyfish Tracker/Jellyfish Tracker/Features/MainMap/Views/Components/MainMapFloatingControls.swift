@@ -1,0 +1,53 @@
+import SwiftUI
+
+struct MainMapFloatingControls: View {
+    let onNearMe: () -> Void
+    let onCompare: () -> Void
+
+    var body: some View {
+        HStack {
+            Button(action: onNearMe) {
+                Image("IconNearMe")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 21, height: 21)
+                    .foregroundStyle(AppColor.Icon.accent)
+                    .frame(width: 38, height: 38)
+                    .background(AppColor.Fill.Button.normalStrong, in: .circle)
+                    .overlay {
+                        Circle().stroke(AppColor.Icon.accent.opacity(0.25), lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Near me")
+            Spacer()
+            Button(action: onCompare) {
+                HStack(alignment: .center, spacing: 6) {
+                    Image("IconCompare")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                    Text("Compare")
+                        .font(.custom("Helvetica-Bold", size: 18, relativeTo: .callout))
+                }
+                .foregroundStyle(AppColor.Text.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 2)
+                .frame(height: 40, alignment: .center)
+                .background(AppColor.Fill.Button.accent)
+                .cornerRadius(999)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Compare beaches")
+        }
+        .padding(.horizontal, 20)
+    }
+}
+
+#Preview("Floating Controls") {
+    MainMapFloatingControls(onNearMe: {}, onCompare: {})
+        .padding(.vertical, 40)
+        .background(AppColor.Preview.controlBackdrop)
+}
