@@ -12,5 +12,7 @@
 	<string>YOUR_OCEAN_CURRENT_SERVICE_KEY</string>
 	<key>ROMS_SERVICE_KEY</key>
 	<string>YOUR_ROMS_SERVICE_KEY</string>
+	<key>TIDAL_CURRENT_SERVICE_KEY</key>
+	<string>YOUR_TIDAL_CURRENT_SERVICE_KEY</string>
 </dict>
 </plist>

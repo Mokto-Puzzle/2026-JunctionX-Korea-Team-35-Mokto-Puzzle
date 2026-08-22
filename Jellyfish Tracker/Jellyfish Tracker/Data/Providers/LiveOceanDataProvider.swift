@@ -5,6 +5,7 @@ import PDFKit
 struct APIEnvironment {
     static let defaultCurrentEndpoint = "https://apis.data.go.kr/1192136/hfCurrent/GetHFCurrentApiService"
     static let defaultROMSEndpoint = "https://apis.data.go.kr/1192136/roms/GetRomsApiService"
+    static let defaultTidalCurrentEndpoint = "https://khoa.go.kr/oceandata/api/tidalCurrentArea/search.do"
     let nifsKey: String?
     let tourismKey: String?
     let kmaHubKey: String?
@@ -12,6 +13,8 @@ struct APIEnvironment {
     let currentEndpoint: String?
     let romsServiceKey: String?
     let romsEndpoint: String?
+    let tidalCurrentServiceKey: String?
+    let tidalCurrentEndpoint: String?
 
     static var current: APIEnvironment {
         let environment = ProcessInfo.processInfo.environment
@@ -23,7 +26,9 @@ struct APIEnvironment {
             currentEndpoint: environment.nonEmptyValue(for: "OCEAN_CURRENT_ENDPOINT") ?? defaultCurrentEndpoint,
             romsServiceKey: (configuredValue(for: "ROMS_SERVICE_KEY", environment: environment)
                 ?? configuredValue(for: "OCEAN_CURRENT_SERVICE_KEY", environment: environment))?.removingPercentEncoding,
-            romsEndpoint: environment.nonEmptyValue(for: "ROMS_ENDPOINT") ?? defaultROMSEndpoint
+            romsEndpoint: environment.nonEmptyValue(for: "ROMS_ENDPOINT") ?? defaultROMSEndpoint,
+            tidalCurrentServiceKey: configuredValue(for: "TIDAL_CURRENT_SERVICE_KEY", environment: environment),
+            tidalCurrentEndpoint: environment.nonEmptyValue(for: "TIDAL_CURRENT_ENDPOINT") ?? defaultTidalCurrentEndpoint
         )
     }
 
@@ -48,7 +53,7 @@ struct APIEnvironment {
 
     var hasLiveSource: Bool {
         nifsKey != nil || tourismKey != nil || kmaHubKey != nil
-            || currentServiceKey != nil || romsServiceKey != nil
+            || currentServiceKey != nil || romsServiceKey != nil || tidalCurrentServiceKey != nil
     }
 }
 
@@ -200,6 +205,15 @@ struct LiveOceanDataProvider: OceanDataProviding {
             romsForecasts = []
         }
 
+        let tidalForecasts: [TidalCurrentSample]
+        if let key = configuration.tidalCurrentServiceKey,
+           let endpoint = configuration.tidalCurrentEndpoint {
+            tidalForecasts = (try? await TidalCurrentClient(serviceKey: key, endpoint: endpoint)
+                .fetchGyeongbuk(referenceDate: referenceDate)) ?? []
+        } else {
+            tidalForecasts = []
+        }
+
         let engine = JellyfishPredictionEngine()
         return bulletin.observations.enumerated().map { index, regionalObservation in
             let origin = regionalObservation.seed.coordinate
@@ -214,7 +228,8 @@ struct LiveOceanDataProvider: OceanDataProviding {
             let observedCurrent = gridCurrents.nearest(to: origin)
             let hasROMSForecast = !romsForecasts.isEmpty
             let hasMarineForecast = !marineForecasts.isEmpty
-            let usesFallbackForcing = (!hasROMSForecast && observedCurrent == nil)
+            let hasTidalForecast = !tidalForecasts.isEmpty
+            let usesFallbackForcing = (!hasROMSForecast && !hasTidalForecast && observedCurrent == nil)
                 || (!hasMarineForecast && (
                     observedOcean?.windDirection == nil
                         || observedOcean?.windSpeed == nil
@@ -227,6 +242,7 @@ struct LiveOceanDataProvider: OceanDataProviding {
                 gridCurrents: gridCurrents,
                 marineForecasts: marineForecasts,
                 romsForecasts: romsForecasts,
+                tidalForecasts: tidalForecasts,
                 referenceDate: referenceDate
             )
             let result = engine.predict(
@@ -275,8 +291,8 @@ struct LiveOceanDataProvider: OceanDataProviding {
                 provenance: .live(
                     source: usesFallbackForcing
                         ? "NIFS regional observation + demo ocean forcing"
-                        : hasROMSForecast && hasMarineForecast
-                            ? "NIFS regional estimate + ocean-field backcast + KHOA/KMA forecast"
+                        : (hasROMSForecast || hasTidalForecast) && hasMarineForecast
+                            ? "NIFS regional estimate + KHOA tidal/ROMS + KMA forecast"
                             : "NIFS + mixed live ocean forcing with partial persistence",
                     observedAt: bulletin.report.observedDate,
                     quality: usesFallbackForcing ? .mock : .derived,
@@ -301,6 +317,7 @@ struct LiveOceanDataProvider: OceanDataProviding {
         gridCurrents: [GridCurrent],
         marineForecasts: [KMAMarineForecastSample],
         romsForecasts: [ROMSForecastSample],
+        tidalForecasts: [TidalCurrentSample],
         referenceDate: Date
     ) -> [OceanFieldSample] {
         let relevantROMS = romsForecasts.filter {
@@ -309,6 +326,32 @@ struct LiveOceanDataProvider: OceanDataProviding {
         }
         if !relevantROMS.isEmpty {
             return relevantROMS.map { current in
+                let nearestBeach = MockOceanDataProvider.beaches.nearest(to: current.coordinate) ?? referenceBeach
+                let observedOcean = oceanObservations.bestMatch(for: nearestBeach)
+                let marine = marineForecasts.nearest(to: current.coordinate, at: current.date)
+                let tidal = tidalForecasts.nearest(to: current.coordinate, at: current.date)
+                let fused = fusedCurrent(roms: current, tidal: tidal)
+                return OceanFieldSample(
+                    coordinate: current.coordinate,
+                    hour: current.date.timeIntervalSince(referenceDate) / 3_600,
+                    forcing: OceanForcing(
+                        currentDirection: fused.direction,
+                        currentSpeed: fused.speed,
+                        windDirection: marine?.windDirection
+                            ?? observedOcean?.windDirection ?? nearestBeach.marine.currentDirection + 35,
+                        windSpeed: marine?.windSpeed
+                            ?? observedOcean?.windSpeed ?? nearestBeach.marine.windSpeed,
+                        waveHeight: marine?.waveHeight
+                            ?? observedOcean?.waveHeight ?? nearestBeach.marine.waveHeight,
+                        waterTemperature: current.waterTemperature
+                    )
+                )
+            }
+        }
+
+
+        if !tidalForecasts.isEmpty {
+            return tidalForecasts.map { current in
                 let nearestBeach = MockOceanDataProvider.beaches.nearest(to: current.coordinate) ?? referenceBeach
                 let observedOcean = oceanObservations.bestMatch(for: nearestBeach)
                 let marine = marineForecasts.nearest(to: current.coordinate, at: current.date)
@@ -324,7 +367,8 @@ struct LiveOceanDataProvider: OceanDataProviding {
                             ?? observedOcean?.windSpeed ?? nearestBeach.marine.windSpeed,
                         waveHeight: marine?.waveHeight
                             ?? observedOcean?.waveHeight ?? nearestBeach.marine.waveHeight,
-                        waterTemperature: current.waterTemperature
+                        waterTemperature: marine?.waterTemperature
+                            ?? observedOcean?.waterTemperature ?? nearestBeach.marine.waterTemperature
                     )
                 )
             }
@@ -362,6 +406,24 @@ struct LiveOceanDataProvider: OceanDataProviding {
                 )
             }
         }
+    }
+
+    private static func fusedCurrent(
+        roms: ROMSForecastSample, tidal: TidalCurrentSample?
+    ) -> (direction: Double, speed: Double) {
+        guard let tidal else { return (roms.direction, roms.speed) }
+        func vector(direction: Double, speed: Double) -> (east: Double, north: Double) {
+            let radians = direction * .pi / 180
+            return (speed * sin(radians), speed * cos(radians))
+        }
+        let background = vector(direction: roms.direction, speed: roms.speed)
+        let nearshore = vector(direction: tidal.direction, speed: tidal.speed)
+        // TidalCurrentArea is the higher-resolution nearshore signal; ROMS keeps
+        // the broader residual-current tendency without double-counting it fully.
+        let east = nearshore.east * 0.7 + background.east * 0.3
+        let north = nearshore.north * 0.7 + background.north * 0.3
+        let direction = (atan2(east, north) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
+        return (direction, hypot(east, north))
     }
 }
 
@@ -869,6 +931,93 @@ struct ROMSForecastClient {
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return formatter
     }()
+}
+
+struct TidalCurrentSample {
+    let date: Date
+    let coordinate: CLLocationCoordinate2D
+    let direction: Double
+    /// metres per second (the public API returns centimetres per second)
+    let speed: Double
+}
+
+struct TidalCurrentClient {
+    let serviceKey: String
+    let endpoint: String
+
+    func fetchGyeongbuk(referenceDate: Date) async throws -> [TidalCurrentSample] {
+        var combined: [TidalCurrentSample] = []
+        // The official field is a spatial grid for one instant. Three-hour frames
+        // match the marine forecast cadence while keeping request use bounded.
+        for hour in stride(from: 0, through: 24, by: 3) {
+            let date = referenceDate.addingTimeInterval(Double(hour) * 3_600)
+            if let frame = try? await fetch(at: date) { combined.append(contentsOf: frame) }
+        }
+        guard !combined.isEmpty else { throw LiveAPIError.invalidResponse }
+        return combined
+    }
+
+    func requestURL(at date: Date) throws -> URL {
+        guard var components = URLComponents(string: endpoint) else { throw LiveAPIError.invalidURL }
+        let parts = Self.calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        guard let year = parts.year, let month = parts.month, let day = parts.day,
+              let hour = parts.hour, let minute = parts.minute else { throw LiveAPIError.invalidURL }
+        components.queryItems = [
+            .init(name: "ServiceKey", value: serviceKey),
+            .init(name: "Date", value: String(format: "%04d%02d%02d", year, month, day)),
+            .init(name: "Hour", value: String(format: "%02d", hour)),
+            .init(name: "Minute", value: String(format: "%02d", (minute / 10) * 10)),
+            .init(name: "MaxX", value: "129.90"),
+            .init(name: "MinX", value: "129.30"),
+            .init(name: "MaxY", value: "37.20"),
+            .init(name: "MinY", value: "35.70"),
+            .init(name: "ResultType", value: "json")
+        ]
+        guard let url = components.url else { throw LiveAPIError.invalidURL }
+        return url
+    }
+
+    static func parse(_ object: Any, date: Date) -> [TidalCurrentSample] {
+        JSONWalker.dictionaries(in: object).compactMap { item in
+            guard let longitude = item.double(for: ["pre_lon"]),
+                  let latitude = item.double(for: ["pre_lat"]),
+                  let direction = item.double(for: ["current_dir"]),
+                  let speedCentimetres = item.double(for: ["current_speed"]),
+                  speedCentimetres >= 0 else { return nil }
+            return TidalCurrentSample(
+                date: date,
+                coordinate: .init(latitude: latitude, longitude: longitude),
+                direction: direction,
+                speed: speedCentimetres / 100
+            )
+        }
+    }
+
+    private func fetch(at date: Date) async throws -> [TidalCurrentSample] {
+        let samples = Self.parse(try await NetworkLoader.json(from: requestURL(at: date)), date: date)
+        guard !samples.isEmpty else { throw LiveAPIError.invalidResponse }
+        return samples
+    }
+
+    private static var calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Seoul") ?? .current
+        return calendar
+    }()
+}
+
+private extension Array where Element == TidalCurrentSample {
+    func nearest(to coordinate: CLLocationCoordinate2D, at date: Date) -> TidalCurrentSample? {
+        min {
+            let lhsTime = abs($0.date.timeIntervalSince(date)) / 60
+            let rhsTime = abs($1.date.timeIntervalSince(date)) / 60
+            let lhsDistance = CLLocation(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude)
+                .distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)) / 1_000
+            let rhsDistance = CLLocation(latitude: $1.coordinate.latitude, longitude: $1.coordinate.longitude)
+                .distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)) / 1_000
+            return lhsTime + lhsDistance < rhsTime + rhsDistance
+        }
+    }
 }
 
 struct GridCurrent {

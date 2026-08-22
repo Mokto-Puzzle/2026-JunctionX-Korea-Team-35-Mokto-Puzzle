@@ -455,6 +455,7 @@ final class JellyfishPredictionEngineTests: XCTestCase {
                 XCTAssertTrue(GyeongbukCoastline.mask.isWater(track.coordinate(at: hour)))
             }
             XCTAssertTrue(track.forecastPath(at: 24).allSatisfy(GyeongbukCoastline.mask.isWater))
+            XCTAssertTrue(JellyfishTrack.pathStaysInWater(track.forecastPath(at: 24, sampleIntervalHours: 3)))
         }
     }
 
@@ -524,5 +525,34 @@ final class JellyfishPredictionEngineTests: XCTestCase {
         XCTAssertEqual(samples.count, 2)
         XCTAssertTrue(samples.allSatisfy { $0.coordinate.latitude == 36.04 })
         XCTAssertEqual(try XCTUnwrap(samples.last).speed, 0.3, accuracy: 0.001)
+    }
+
+    func testTidalCurrentParserConvertsCentimetresPerSecond() throws {
+        let date = Date(timeIntervalSince1970: 1_787_452_800)
+        let object: [String: Any] = ["result": ["data": [[
+            "current_speed": "15.0",
+            "pre_lon": "129.50297",
+            "current_dir": "195",
+            "pre_lat": "35.70638"
+        ]]]]
+        let samples = TidalCurrentClient.parse(object, date: date)
+        XCTAssertEqual(samples.count, 1)
+        XCTAssertEqual(try XCTUnwrap(samples.first).speed, 0.15, accuracy: 0.000_1)
+        XCTAssertEqual(try XCTUnwrap(samples.first).direction, 195, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(samples.first).coordinate.longitude, 129.50297, accuracy: 0.000_01)
+    }
+
+    func testTidalCurrentRequestUsesOfficialAreaParameters() throws {
+        let client = TidalCurrentClient(
+            serviceKey: "demo-key==",
+            endpoint: APIEnvironment.defaultTidalCurrentEndpoint
+        )
+        let url = try client.requestURL(at: Date(timeIntervalSince1970: 1_787_452_800))
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+        let values = Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(values["ServiceKey"], "demo-key==")
+        XCTAssertEqual(values["ResultType"], "json")
+        XCTAssertEqual(values["MinX"], "129.30")
+        XCTAssertEqual(values["MaxY"], "37.20")
     }
 }
