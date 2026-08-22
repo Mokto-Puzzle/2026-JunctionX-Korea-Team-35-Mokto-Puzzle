@@ -320,6 +320,27 @@ final class JellyfishPredictionEngineTests: XCTestCase {
         XCTAssertTrue(final.particles.allSatisfy { $0.coordinate.longitude >= 129.3999 })
     }
 
+    func testParticleIDsRemainStableAcrossPredictionFrames() throws {
+        let start = CLLocationCoordinate2D(latitude: 36.0, longitude: 129.41)
+        let result = JellyfishPredictionEngine(
+            particleCount: 40, stepSeconds: 600, forecastHours: 2, checkpointHours: 1
+        ).predict(
+            observation: .init(coordinate: start, species: "moon jellyfish"),
+            forcing: .init(
+                currentDirection: 90, currentSpeed: 0.2,
+                windDirection: 0, windSpeed: 0,
+                waveHeight: 0.5, waterTemperature: 20
+            ),
+            seed: 42
+        )
+
+        let expectedIDs = try XCTUnwrap(result.points.first).particles.map(\.id)
+        XCTAssertEqual(Set(expectedIDs).count, expectedIDs.count)
+        for point in result.points {
+            XCTAssertEqual(point.particles.map(\.id), expectedIDs)
+        }
+    }
+
     func testParticleCannotTunnelAcrossNarrowLandWhenDestinationIsWater() throws {
         struct NarrowLandStrip: CoastlineMask {
             func isWater(_ coordinate: CLLocationCoordinate2D) -> Bool {

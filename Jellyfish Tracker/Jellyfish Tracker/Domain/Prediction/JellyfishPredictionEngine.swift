@@ -242,16 +242,34 @@ enum GyeongbukCoastline {
 }
 
 struct JellyfishParticleSnapshot: Hashable {
+    let id: Int
     let coordinate: CLLocationCoordinate2D
     let isBeached: Bool
+    let isInactive: Bool
+
+    init(
+        id: Int = -1,
+        coordinate: CLLocationCoordinate2D,
+        isBeached: Bool,
+        isInactive: Bool = false
+    ) {
+        self.id = id
+        self.coordinate = coordinate
+        self.isBeached = isBeached
+        self.isInactive = isInactive
+    }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.coordinate.latitude == rhs.coordinate.latitude
-            && lhs.coordinate.longitude == rhs.coordinate.longitude && lhs.isBeached == rhs.isBeached
+        lhs.id == rhs.id
+            && lhs.coordinate.latitude == rhs.coordinate.latitude
+            && lhs.coordinate.longitude == rhs.coordinate.longitude
+            && lhs.isBeached == rhs.isBeached
+            && lhs.isInactive == rhs.isInactive
     }
 
     func hash(into hasher: inout Hasher) {
-        hasher.combine(coordinate.latitude); hasher.combine(coordinate.longitude); hasher.combine(isBeached)
+        hasher.combine(id); hasher.combine(coordinate.latitude); hasher.combine(coordinate.longitude)
+        hasher.combine(isBeached); hasher.combine(isInactive)
     }
 }
 
@@ -262,7 +280,8 @@ struct JellyfishPredictionPoint {
     let particles: [JellyfishParticleSnapshot]
 
     var beachedFraction: Double {
-        particles.isEmpty ? 0 : Double(particles.filter(\.isBeached).count) / Double(particles.count)
+        let supported = particles.filter { !$0.isInactive }
+        return supported.isEmpty ? 0 : Double(supported.filter(\.isBeached).count) / Double(supported.count)
     }
 }
 
@@ -294,8 +313,8 @@ struct JellyfishPredictionEngine {
         let windage = speciesWindage(observation.species)
         let initialSigma = max(observation.initialUncertaintyRadius, 350) / 1.794
         var random = SeededRandomNumberGenerator(seed: seed)
-        var particles = (0..<count).map { _ in
-            initialParticle(observation, sigma: initialSigma, coastline: coastline, random: &random)
+        var particles = (0..<count).map { id in
+            initialParticle(id: id, observation, sigma: initialSigma, coastline: coastline, random: &random)
         }
         var points = [predictionPoint(hour: 0, particles: particles, origin: observation.coordinate)]
 
@@ -345,6 +364,7 @@ struct JellyfishPredictionEngine {
     }
 
     private func initialParticle(
+        id: Int,
         _ observation: JellyfishObservation,
         sigma: Double,
         coastline: any CoastlineMask,
@@ -355,6 +375,7 @@ struct JellyfishPredictionEngine {
             let coordinate = Self.coordinate(from: observation.coordinate, eastMeters: east, northMeters: north)
             if coastline.isWater(coordinate) {
                 return .init(
+                    id: id,
                     east: east, north: north,
                     speedBias: max(0.55, 1 + random.gaussian() * 0.12),
                     directionBias: random.gaussian() * 6
@@ -362,6 +383,7 @@ struct JellyfishPredictionEngine {
             }
         }
         return .init(
+            id: id,
             east: 0,
             north: 0,
             speedBias: 1,
@@ -435,9 +457,10 @@ struct JellyfishPredictionEngine {
     private func predictionPoint(
         hour: Double, particles: [Particle], origin: CLLocationCoordinate2D
     ) -> JellyfishPredictionPoint {
-        let moving = particles.filter { !$0.isInactive && !$0.isBeached }
         let available = particles.filter { !$0.isInactive }
-        let included = moving.isEmpty ? (available.isEmpty ? particles : available) : moving
+        // Beached particles remain part of the physical distribution so coastal
+        // accumulation does not disappear while offshore particles keep moving.
+        let included = available.isEmpty ? particles : available
         let meanEast = included.map(\.east).reduce(0, +) / Double(included.count)
         let meanNorth = included.map(\.north).reduce(0, +) / Double(included.count)
         // An arithmetic centroid can lie on land when particles surround a bay or peninsula.
@@ -456,8 +479,10 @@ struct JellyfishPredictionEngine {
             uncertaintyRadius: max(distances[index], 350),
             particles: particles.map {
                 .init(
+                    id: $0.id,
                     coordinate: Self.coordinate(from: origin, eastMeters: $0.east, northMeters: $0.north),
-                    isBeached: $0.isBeached
+                    isBeached: $0.isBeached,
+                    isInactive: $0.isInactive
                 )
             }
         )
@@ -476,6 +501,7 @@ struct JellyfishPredictionEngine {
 }
 
 private struct Particle {
+    let id: Int
     var east: Double
     var north: Double
     let speedBias: Double

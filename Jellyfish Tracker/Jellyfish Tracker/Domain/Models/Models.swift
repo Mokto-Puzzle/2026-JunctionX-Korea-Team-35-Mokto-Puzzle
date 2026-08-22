@@ -403,17 +403,31 @@ struct JellyfishTrack: Identifiable, Hashable {
         let lowerHour = hours.last(where: { $0 <= hour }) ?? first
         let upperHour = hours.first(where: { $0 >= hour }) ?? last
         guard let lower = particleSnapshots[lowerHour] else { return [] }
-        guard lowerHour != upperHour, let upper = particleSnapshots[upperHour], lower.count == upper.count else {
+        guard lowerHour != upperHour, let upper = particleSnapshots[upperHour] else {
             return lower
         }
         let fraction = min(max((hour - lowerHour) / (upperHour - lowerHour), 0), 1)
-        return zip(lower, upper).map { start, end in
-            JellyfishParticleSnapshot(
+        let upperByID = Dictionary(uniqueKeysWithValues: upper.enumerated().map { index, particle in
+            (particle.id >= 0 ? particle.id : index, particle)
+        })
+        return lower.enumerated().map { index, start in
+            let stableID = start.id >= 0 ? start.id : index
+            guard !start.isBeached, let end = upperByID[stableID] else {
+                return JellyfishParticleSnapshot(
+                    id: stableID,
+                    coordinate: start.coordinate,
+                    isBeached: start.isBeached,
+                    isInactive: start.isInactive
+                )
+            }
+            return JellyfishParticleSnapshot(
+                id: stableID,
                 coordinate: .init(
                     latitude: start.coordinate.latitude + (end.coordinate.latitude - start.coordinate.latitude) * fraction,
                     longitude: start.coordinate.longitude + (end.coordinate.longitude - start.coordinate.longitude) * fraction
                 ),
-                isBeached: start.isBeached || (fraction >= 1 && end.isBeached)
+                isBeached: fraction >= 1 && end.isBeached,
+                isInactive: start.isInactive || (fraction > 0 && end.isInactive)
             )
         }
     }
