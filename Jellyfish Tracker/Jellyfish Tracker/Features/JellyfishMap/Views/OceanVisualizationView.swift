@@ -33,14 +33,13 @@ struct OceanVisualizationView: View {
 
             if layers.contains(.forecast) {
                 MapPolyline(coordinates: forecastPath)
-                    .stroke(.purple, style: .init(lineWidth: 6, lineCap: .round, dash: [9, 7]))
+                    .stroke(Color.brandTeal.opacity(0.7), style: .init(lineWidth: 3, lineCap: .round))
                 MapCircle(center: forecastCoordinate, radius: max(4_000, 7_000 + forecastHour * 250))
-                    .foregroundStyle(.purple.opacity(0.18))
-                    .stroke(.purple.opacity(0.8), style: .init(lineWidth: 2, dash: [6, 5]))
-                Annotation("Predicted Position", coordinate: forecastCoordinate) {
+                    .foregroundStyle(Color.brandTeal.opacity(0.08))
+                    .stroke(Color.brandTeal.opacity(0.45), style: .init(lineWidth: 1.5, dash: [5, 5]))
+                Annotation("", coordinate: forecastCoordinate) {
                     VStack(spacing: 3) {
-                        Image(systemName: "aqi.medium").font(.title2.bold()).foregroundStyle(.white)
-                            .frame(width: 42, height: 42).background(.purple.gradient, in: Circle())
+                        JellyfishGlyph().fill(Color.brandTeal).frame(width: 46, height: 46)
                         Text(forecastTimeLabel).font(.caption2.bold())
                             .padding(.horizontal, 7).padding(.vertical, 3).background(.regularMaterial, in: Capsule())
                     }
@@ -62,17 +61,9 @@ struct OceanVisualizationView: View {
             }
 
             ForEach(beaches) { beach in
-                Annotation(beach.name, coordinate: beach.coordinate, anchor: .bottom) {
+                Annotation("", coordinate: beach.coordinate, anchor: .bottom) {
                     Button { onSelectBeach(beach) } label: {
-                        VStack(spacing: 3) {
-                            Image(systemName: beach.safety.symbol).font(.headline.bold()).foregroundStyle(.white)
-                                .frame(width: 42, height: 42).background(beach.safety.color.gradient, in: Circle())
-                                .overlay(Circle().stroke(beach.id == Beach.samples[0].id ? .cyan : .white, lineWidth: beach.id == Beach.samples[0].id ? 4 : 2))
-                                .shadow(radius: 4, y: 2)
-                            Text(beach.id == Beach.samples[0].id ? "Best Pick" : beach.name.replacingOccurrences(of: " Beach", with: ""))
-                                .font(.caption2.bold()).foregroundStyle(beach.id == Beach.samples[0].id ? .cyan : .primary)
-                                .padding(.horizontal, 6).padding(.vertical, 3).background(.regularMaterial, in: Capsule())
-                        }
+                        BeachMapMarker(beach: beach, isRecommended: beach.id == recommendedID)
                     }
                     .buttonStyle(.plain)
                 }
@@ -96,18 +87,28 @@ struct OceanVisualizationView: View {
         [.init(latitude: 36.12, longitude: 129.61), .init(latitude: 36.19, longitude: 129.56), forecastCoordinate]
     }
 
+    private var recommendedID: Beach.ID? {
+        beaches.sorted {
+            if $0.safety.rank != $1.safety.rank { return $0.safety.rank < $1.safety.rank }
+            if $0.sightings != $1.sightings { return $0.sightings < $1.sightings }
+            return $0.distance < $1.distance
+        }.first?.id
+    }
+
     private func fitCamera(to beaches: [Beach]) {
         guard !beaches.isEmpty else { camera = .region(Self.eastCoastRegion); return }
         let latitudes = beaches.map(\.coordinate.latitude)
         let longitudes = beaches.map(\.coordinate.longitude)
         let minLatitude = latitudes.min()!, maxLatitude = latitudes.max()!
         let minLongitude = longitudes.min()!, maxLongitude = longitudes.max()!
+        let latitudeDelta = max((maxLatitude - minLatitude) * 1.65, beaches.count == 1 ? 0.12 : 0.26)
+        let longitudeDelta = max((maxLongitude - minLongitude) * 1.8, beaches.count == 1 ? 0.15 : 0.34)
         let region = MKCoordinateRegion(
-            center: .init(latitude: (minLatitude + maxLatitude) / 2, longitude: (minLongitude + maxLongitude) / 2 + 0.08),
-            span: .init(
-                latitudeDelta: max((maxLatitude - minLatitude) * 1.65, beaches.count == 1 ? 0.12 : 0.26),
-                longitudeDelta: max((maxLongitude - minLongitude) * 1.8, beaches.count == 1 ? 0.15 : 0.34)
-            )
+            center: .init(
+                latitude: (minLatitude + maxLatitude) / 2 + latitudeDelta * 0.18,
+                longitude: (minLongitude + maxLongitude) / 2 + 0.08
+            ),
+            span: .init(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta)
         )
         withAnimation(.easeInOut(duration: 0.65)) { camera = .region(region) }
     }
@@ -118,5 +119,31 @@ struct OceanVisualizationView: View {
 
     private func temperatureColor(_ temperature: Double) -> Color {
         temperature >= 27 ? .red : temperature >= 26 ? .orange : temperature >= 25 ? .yellow : .blue
+    }
+}
+
+private struct BeachMapMarker: View {
+    let beach: Beach
+    let isRecommended: Bool
+
+    var body: some View {
+        VStack(spacing: -3) {
+            Text(String(format: "%.1f°C", beach.temperature))
+                .font(.caption.bold()).foregroundStyle(temperatureColor)
+                .padding(.horizontal, 8).padding(.vertical, 5).background(.white, in: Capsule())
+                .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+            ZStack {
+                Circle().fill(temperatureColor.opacity(0.22)).frame(width: isRecommended ? 86 : 72, height: isRecommended ? 86 : 72)
+                VStack(spacing: 2) {
+                    Image(systemName: "mappin.circle.fill").font(.title2).foregroundStyle(temperatureColor)
+                    Text(beach.name.replacingOccurrences(of: " Beach", with: ""))
+                        .font(.caption2).foregroundStyle(.primary).lineLimit(1)
+                }
+            }
+        }
+    }
+
+    private var temperatureColor: Color {
+        beach.temperature >= 27 ? .red : beach.temperature >= 26 ? .orange : beach.temperature >= 25 ? .brandTeal : .cyan
     }
 }

@@ -43,50 +43,55 @@ private struct HomeMapView: View {
                 .ignoresSafeArea(edges: .top)
 
             VStack(spacing: 9) {
-                RecommendationBanner(beach: recommendedBeach)
-                HStack(spacing: 8) {
-                    HStack {
-                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                        TextField("Search beaches", text: $searchText)
-                        if !searchText.isEmpty { Button("Clear", systemImage: "xmark.circle.fill") { searchText = "" }.labelStyle(.iconOnly).foregroundStyle(.secondary) }
-                    }
-                    .padding(.horizontal, 12).frame(height: 44)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                    Button { showsFilters = true } label: {
-                        Image(systemName: "line.3.horizontal.decrease.circle.fill").font(.title2).frame(width: 44, height: 44)
-                    }.buttonStyle(.glassProminent)
-                }
-                if !searchResults.isEmpty {
-                    VStack(spacing: 0) {
-                        ForEach(searchResults.prefix(5)) { beach in
-                            Button { focusedBeach = beach; selectedBeach = beach; searchText = "" } label: {
-                                BeachRow(beach: beach).padding(.horizontal, 12).padding(.vertical, 5)
-                            }.buttonStyle(.plain)
-                            Divider().padding(.leading, 56)
-                        }
-                    }.background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-                }
+                RecommendationBanner(beach: recommendedBeach) { showsFilters = true }
                 if activeLayers.contains(.forecast) {
                     HStack {
-                        Text("-24h").font(.caption)
+                        Text("Past").font(.caption.bold()).foregroundStyle(.secondary)
                         Slider(value: $forecastHour, in: -24...12, step: 3)
-                        Text(timeLabel).font(.caption.bold()).frame(width: 44)
+                            .tint(Color.brandTeal)
+                        Text("Future").font(.caption.bold()).foregroundStyle(.secondary)
                     }
-                        .padding(.horizontal, 12).frame(height: 38).background(.regularMaterial, in: Capsule())
+                        .padding(.horizontal, 14).frame(height: 42).background(.regularMaterial, in: Capsule())
+                    Text(timeLabel).font(.caption2.bold()).foregroundStyle(Color.brandTeal)
                 }
             }.padding(.horizontal, 12)
 
             VStack {
                 Spacer()
-                HStack(spacing: 8) {
-                    Button { focusedBeach = nil; searchText = "" } label: { Label("Near Me", systemImage: "location.fill") }.buttonStyle(.glass)
+                if !searchResults.isEmpty {
+                    VStack(spacing: 0) {
+                        ForEach(searchResults.prefix(4)) { beach in
+                            Button { focusedBeach = beach; selectedBeach = beach; searchText = "" } label: {
+                                BeachRow(beach: beach).padding(.horizontal, 12).padding(.vertical, 5)
+                            }.buttonStyle(.plain)
+                            if beach.id != searchResults.prefix(4).last?.id { Divider().padding(.leading, 54) }
+                        }
+                    }
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+                    .padding(.horizontal, 12)
+                }
+                HStack {
+                    Button { focusedBeach = nil; searchText = "" } label: {
+                        Image(systemName: "location.circle.fill").font(.title2).foregroundStyle(Color.brandTeal)
+                    }.buttonStyle(.glass)
                     Spacer()
                     NavigationLink { BeachComparisonView(beaches: nearbyBeaches) } label: {
-                        Image(systemName: "rectangle.split.3x1.fill").font(.title3).frame(width: 46, height: 46)
+                        Label("Compare", systemImage: "plus.circle").font(.subheadline.bold())
+                    }.buttonStyle(.glassProminent).tint(Color.brandTeal)
+                }.padding(.horizontal, 16).padding(.bottom, 8)
+                VStack(spacing: 12) {
+                    Capsule().fill(.secondary.opacity(0.35)).frame(width: 38, height: 5)
+                    HStack(spacing: 10) {
+                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                        TextField("Search", text: $searchText)
+                        if !searchText.isEmpty { Button("Clear", systemImage: "xmark.circle.fill") { searchText = "" }.labelStyle(.iconOnly).foregroundStyle(.secondary) }
+                        Image(systemName: "mic.fill").foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.glassProminent)
-                    .accessibilityLabel("Compare nearby beaches")
-                }.padding(14)
+                    .padding(.horizontal, 14).frame(height: 48)
+                    .background(Color(.secondarySystemBackground).opacity(0.82), in: Capsule())
+                }
+                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 24)
+                .background(.ultraThinMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
             }
         }
         .sheet(item: $selectedBeach) { beach in
@@ -107,21 +112,24 @@ private struct HomeMapView: View {
 
 private struct RecommendationBanner: View {
     let beach: Beach
+    let filterAction: () -> Void
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack {
-                Label("TODAY'S PICK", systemImage: "sparkles").font(.caption.bold()).foregroundStyle(.blue)
+                JellyfishGlyph().fill(Color.brandTeal).frame(width: 34, height: 34)
                 Spacer()
-                Text("Updated 18 min ago").font(.caption2).foregroundStyle(.secondary)
             }
-            Text("\(beach.name) is your\nsafest choice today")
-                .font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
-            Text(beach.summary)
+            Text(Date.now.formatted(.dateTime.month(.wide).day().year()))
                 .font(.subheadline).foregroundStyle(.secondary)
+            HStack(alignment: .bottom) {
+                (Text(beach.name).foregroundStyle(Color.brandTeal) + Text(" is your\nsafest choice today!").foregroundStyle(Color(red: 0.02, green: 0.20, blue: 0.20)))
+                    .font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button(action: filterAction) { Image(systemName: "line.3.horizontal.decrease") }
+                    .buttonStyle(.glass).tint(Color.brandTeal).accessibilityLabel("Ocean layers")
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(16)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22))
-        .padding(.top, 6)
+        .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8)
     }
 }
 
