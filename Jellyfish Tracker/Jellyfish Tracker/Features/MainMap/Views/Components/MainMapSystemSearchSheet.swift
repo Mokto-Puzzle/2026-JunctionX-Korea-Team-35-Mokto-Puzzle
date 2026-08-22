@@ -6,6 +6,7 @@ struct MainMapSystemSearchSheet: View {
     let isSearchFocused: Bool
     let selectedBeach: Beach?
     let searchExpanded: Bool
+    let isCollapsed: Bool
     let isDetailExpanded: Bool
     let filteredBeaches: [Beach]
     let riskForBeach: (Beach) -> RiskLevel
@@ -29,10 +30,17 @@ struct MainMapSystemSearchSheet: View {
 
             if let selectedBeach {
                 let content = summaryForBeach(selectedBeach)
-                BeachResultSummary(content: content)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                if isCollapsed {
+                    BeachCollapsedPreview(content: content)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 17)
+                        .transition(.opacity)
+                } else {
+                    BeachResultSummary(content: content)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
 
                 if isDetailExpanded {
                     BeachResultExpandedDetails(content: content)
@@ -48,6 +56,7 @@ struct MainMapSystemSearchSheet: View {
 
             Spacer(minLength: 0)
         }
+        .id(contentIdentity)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background {
@@ -133,6 +142,40 @@ struct MainMapSystemSearchSheet: View {
     private var searchFieldTopFromSheet: CGFloat { 41 }
     private var searchFieldFill: Color {
         AppColor.Fill.secondary
+    }
+
+    private var contentIdentity: String {
+        [
+            isCollapsed ? "collapsed" : "raised",
+            isDetailExpanded ? "detail" : "summary",
+            selectedBeach?.id ?? "search",
+            searchExpanded ? "results" : "idle"
+        ].joined(separator: "-")
+    }
+}
+
+private struct BeachCollapsedPreview: View {
+    let content: BeachResultSummaryContent
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(content.risk.shortTitle.uppercased())
+                .font(.custom("Helvetica", size: 12, relativeTo: .caption))
+                .foregroundStyle(AppColor.risk(content.risk))
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(AppColor.risk(content.risk).opacity(0.18), in: .capsule)
+
+            Text(content.beach.displayName)
+                .font(.custom("Helvetica-Bold", size: 16, relativeTo: .subheadline))
+                .foregroundStyle(AppColor.Text.normal)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+        }
+        .frame(height: 42, alignment: .top)
+        .opacity(0.86)
+        .allowsHitTesting(false)
     }
 }
 
@@ -222,6 +265,7 @@ private struct MainMapSystemSearchSheetPreview: View {
             isSearchFocused: true,
             selectedBeach: nil,
             searchExpanded: true,
+            isCollapsed: false,
             isDetailExpanded: false,
             filteredBeaches: MockOceanDataProvider.beaches,
             riskForBeach: { $0.baseRisk },

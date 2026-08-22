@@ -18,6 +18,7 @@ struct JellyMapView: View {
     @State private var searchExpanded = false
     @State private var resultSheetExpanded = false
     @State private var visualizeTemperature = false
+    @State private var mapCameraDistance: CLLocationDistance = 175_000
     @FocusState private var searchFocused: Bool
 
     init(provider: OceanDataProviding? = nil) {
@@ -108,7 +109,9 @@ struct JellyMapView: View {
         .sheet(isPresented: $searchSheetPresented) {
             systemSearchSheet
                 .presentationDetents(
-                    [Self.collapsedSearchDetent, Self.resultSearchDetent, Self.expandedSearchDetent],
+                    searchFocused
+                        ? [Self.collapsedSearchDetent, Self.resultSearchDetent]
+                        : [Self.collapsedSearchDetent, Self.resultSearchDetent, Self.expandedSearchDetent],
                     selection: $searchSheetDetent
                 )
                 .presentationDragIndicator(.hidden)
@@ -173,7 +176,7 @@ struct JellyMapView: View {
                             MapPolyline(coordinates: [segment.start, segment.end])
                                 .stroke(
                                     segment.color.opacity(0.82),
-                                    style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [5, 7])
+                                    style: StrokeStyle(lineWidth: routeLineWidth, lineCap: .round, dash: routeDashPattern)
                                 )
                         }
                     }
@@ -214,6 +217,9 @@ struct JellyMapView: View {
         .id("\(model.beaches.count)-\(model.tracks.count)")
         .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
         .mapControls { MapScaleView() }
+        .onMapCameraChange(frequency: .continuous) { context in
+            mapCameraDistance = context.camera.distance
+        }
     }
 
     private var recommendationHeader: some View {
@@ -255,6 +261,7 @@ struct JellyMapView: View {
             isSearchFocused: searchFocused,
             selectedBeach: sheetBeach,
             searchExpanded: searchExpanded,
+            isCollapsed: searchSheetDetent == Self.collapsedSearchDetent,
             isDetailExpanded: searchSheetDetent == Self.expandedSearchDetent,
             filteredBeaches: model.filteredBeaches,
             riskForBeach: { model.risk(for: $0) },
@@ -436,10 +443,10 @@ struct JellyMapView: View {
 
     private func forecastRoutePath(for track: JellyfishTrack) -> [CLLocationCoordinate2D] {
         var path = [track.coordinate(at: 0)]
-        var sampleHour = 0.75
+        var sampleHour = routeSampleStepHours
         while sampleHour <= 24.000_1 {
             path.append(track.coordinate(at: min(sampleHour, 24)))
-            sampleHour += 0.75
+            sampleHour += routeSampleStepHours
         }
         return path
     }
@@ -467,6 +474,36 @@ struct JellyMapView: View {
             return .unknown
         }
         return displayRisk(for: nearestBeach)
+    }
+
+    private var routeSampleStepHours: Double {
+        switch mapCameraDistance {
+        case ..<45_000:
+            0.75
+        case ..<110_000:
+            1.5
+        case ..<190_000:
+            2.25
+        default:
+            3.0
+        }
+    }
+
+    private var routeDashPattern: [CGFloat] {
+        switch mapCameraDistance {
+        case ..<45_000:
+            [5, 7]
+        case ..<110_000:
+            [6, 10]
+        case ..<190_000:
+            [7, 14]
+        default:
+            [8, 18]
+        }
+    }
+
+    private var routeLineWidth: CGFloat {
+        mapCameraDistance < 110_000 ? 3 : 2.4
     }
 
     private static let collapsedSheetHeight: CGFloat = 126
