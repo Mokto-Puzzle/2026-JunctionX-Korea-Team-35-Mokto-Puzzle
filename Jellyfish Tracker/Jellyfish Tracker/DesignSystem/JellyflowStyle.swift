@@ -1,7 +1,7 @@
 import SwiftUI
 
 extension Color {
-    static let brandTeal = Color(red: 0.00, green: 0.75, blue: 0.65)
+    static let brandTeal = AppColor.Fill.Button.accent
 }
 
 struct JellyfishGlyph: Shape {

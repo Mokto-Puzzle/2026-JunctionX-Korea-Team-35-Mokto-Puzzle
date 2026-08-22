@@ -21,6 +21,8 @@
 				"DesignSystem/Components/.gitkeep-design-components",
 				"DesignSystem/Modifiers/.gitkeep-design-modifiers",
 				"DesignSystem/Tokens/.gitkeep-design-tokens",
+				"DesignSystem/Tokens/Raw/primitive.tokens.json",
+				"DesignSystem/Tokens/Raw/semantic.tokens.json",
 				"Domain/Models/.gitkeep-domain-models",
 				"Features/BeachComparison/ViewModels/.gitkeep-beach-comparison-viewmodels",
 				"Features/BeachComparison/Views/.gitkeep-beach-comparison-views",
