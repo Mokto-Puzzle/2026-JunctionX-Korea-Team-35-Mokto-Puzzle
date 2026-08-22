@@ -2,158 +2,111 @@ import MapKit
 import SwiftUI
 
 struct JellyfishPrototypeView: View {
-    @State private var selectedTab = 0
-    @State private var compareSelection = Set(Beach.samples.prefix(2).map(\.id))
-    @State private var favorites = Set([Beach.samples[0].id])
-
     var body: some View {
-        TabView(selection: $selectedTab) {
-            NavigationStack {
-                HomeMapView(favorites: $favorites, compareSelection: $compareSelection)
-            }
-            .tabItem { Label("지도", systemImage: "map.fill") }
-            .tag(0)
-
-            NavigationStack {
-                BeachComparisonView(selection: $compareSelection)
-            }
-            .tabItem { Label("비교", systemImage: "rectangle.split.3x1") }
-            .tag(1)
-
-            NavigationStack { JellyfishReportView() }
-                .tabItem { Label("제보", systemImage: "camera.fill") }
-                .tag(2)
-
-            NavigationStack {
-                FavoritesView(favorites: $favorites)
-            }
-            .tabItem { Label("관심", systemImage: "heart.fill") }
-            .tag(3)
-        }
-        .tint(.blue)
+        NavigationStack { HomeMapView() }
+            .tint(.blue)
     }
 }
 
 private struct HomeMapView: View {
-    @Binding var favorites: Set<Beach.ID>
-    @Binding var compareSelection: Set<Beach.ID>
-    @State private var camera: MapCameraPosition = .region(.init(center: .init(latitude: 36.42, longitude: 129.39), span: .init(latitudeDelta: 1.35, longitudeDelta: 0.75)))
     @State private var selectedBeach: Beach?
-    @State private var layer: HomeLayer = .risk
+    @State private var activeLayers: Set<OceanDisplayLayer> = [.forecast]
     @State private var forecastHour = 0.0
-    @State private var showsList = false
+    @State private var showsFilters = false
+    @State private var searchText = ""
+    @State private var focusedBeach: Beach?
 
-    enum HomeLayer: String, CaseIterable, Identifiable {
-        case risk = "위험도"
-        case forecast = "예상 이동"
-        case current = "해류"
-        case temperature = "수온"
-        var id: Self { self }
+    private var nearbyBeaches: [Beach] {
+        Array(Beach.samples.sorted { $0.distance < $1.distance }.prefix(4))
+    }
+
+    private var recommendedBeach: Beach {
+        nearbyBeaches.sorted {
+            if $0.safety.rank != $1.safety.rank { return $0.safety.rank < $1.safety.rank }
+            if $0.sightings != $1.sightings { return $0.sightings < $1.sightings }
+            return $0.distance < $1.distance
+        }.first!
+    }
+
+    private var displayedBeaches: [Beach] {
+        if let focusedBeach { return [focusedBeach] }
+        return nearbyBeaches
+    }
+
+    private var searchResults: [Beach] {
+        searchText.isEmpty ? [] : Beach.samples.filter { $0.name.localizedCaseInsensitiveContains(searchText) || $0.region.localizedCaseInsensitiveContains(searchText) }
     }
 
     var body: some View {
         ZStack(alignment: .top) {
-            Map(position: $camera) {
-                if layer == .forecast {
-                    MapPolyline(coordinates: forecastPath)
-                        .stroke(.purple, style: .init(lineWidth: 5, lineCap: .round, dash: [8, 7]))
-                    MapCircle(center: forecastCoordinate, radius: 7_000 + forecastHour * 600)
-                        .foregroundStyle(.purple.opacity(0.16))
-                        .stroke(.purple.opacity(0.7), style: .init(lineWidth: 2, dash: [6, 5]))
-                }
-                if layer == .current {
-                    ForEach(Array(Beach.samples.enumerated()), id: \.element.id) { index, beach in
-                        Annotation("", coordinate: shifted(beach.coordinate, by: 0.08)) {
-                            VStack(spacing: 2) {
-                                Image(systemName: "location.north.fill")
-                                    .font(.title2.bold()).foregroundStyle(.blue)
-                                    .rotationEffect(.degrees(Double(index * 18 - 20)))
-                                Text(String(format: "%.1fm/s", beach.current)).font(.caption2.bold())
-                            }
-                        }
-                    }
-                }
-                if layer == .temperature {
-                    ForEach(Beach.samples) { beach in
-                        MapCircle(center: shifted(beach.coordinate, by: 0.07), radius: 16_000)
-                            .foregroundStyle(tempColor(beach.temperature).opacity(0.35))
-                    }
-                }
-                ForEach(Beach.samples) { beach in
-                    Annotation(beach.name, coordinate: beach.coordinate, anchor: .bottom) {
-                        Button { selectedBeach = beach } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: beach.safety.symbol)
-                                    .font(.headline.bold()).foregroundStyle(.white)
-                                    .frame(width: 42, height: 42)
-                                    .background(beach.safety.color.gradient, in: Circle())
-                                    .overlay(Circle().stroke(beach.id == Beach.samples[0].id ? .blue : .white, lineWidth: beach.id == Beach.samples[0].id ? 5 : 2))
-                                    .shadow(radius: 4, y: 2)
-                                if beach.id == Beach.samples[0].id {
-                                    Text("추천").font(.caption2.bold()).foregroundStyle(.blue)
-                                        .padding(.horizontal, 7).padding(.vertical, 3)
-                                        .background(.regularMaterial, in: Capsule())
-                                }
-                            }
-                        }.buttonStyle(.plain)
-                    }
-                }
-            }
-            .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll, showsTraffic: false))
-            .ignoresSafeArea(edges: .top)
+            OceanVisualizationView(layers: activeLayers, forecastHour: forecastHour, beaches: displayedBeaches) { selectedBeach = $0 }
+                .ignoresSafeArea(edges: .top)
 
-            VStack(spacing: 10) {
-                RecommendationBanner()
-                Picker("지도 레이어", selection: $layer) {
-                    ForEach(HomeLayer.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .padding(5).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                if layer == .forecast {
+            VStack(spacing: 9) {
+                RecommendationBanner(beach: recommendedBeach)
+                HStack(spacing: 8) {
                     HStack {
-                        Text("현재").font(.caption)
-                        Slider(value: $forecastHour, in: 0...12, step: 3)
-                        Text("+\(Int(forecastHour))h").font(.caption.bold()).frame(width: 38)
+                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                        TextField("해수욕장 이름 검색", text: $searchText)
+                        if !searchText.isEmpty { Button("지우기", systemImage: "xmark.circle.fill") { searchText = "" }.labelStyle(.iconOnly).foregroundStyle(.secondary) }
                     }
-                    .padding(.horizontal, 12).frame(height: 42)
-                    .background(.regularMaterial, in: Capsule())
+                    .padding(.horizontal, 12).frame(height: 44)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                    Button { showsFilters = true } label: {
+                        Image(systemName: "line.3.horizontal.decrease.circle.fill").font(.title2).frame(width: 44, height: 44)
+                    }.buttonStyle(.glassProminent)
+                }
+                if !searchResults.isEmpty {
+                    VStack(spacing: 0) {
+                        ForEach(searchResults.prefix(5)) { beach in
+                            Button { focusedBeach = beach; selectedBeach = beach; searchText = "" } label: {
+                                BeachRow(beach: beach).padding(.horizontal, 12).padding(.vertical, 5)
+                            }.buttonStyle(.plain)
+                            Divider().padding(.leading, 56)
+                        }
+                    }.background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                }
+                if activeLayers.contains(.forecast) {
+                    HStack {
+                        Text("-24h").font(.caption)
+                        Slider(value: $forecastHour, in: -24...12, step: 3)
+                        Text(timeLabel).font(.caption.bold()).frame(width: 44)
+                    }
+                        .padding(.horizontal, 12).frame(height: 38).background(.regularMaterial, in: Capsule())
                 }
             }.padding(.horizontal, 12)
 
             VStack {
                 Spacer()
-                HStack {
-                    NavigationLink { MapPlaygroundView() } label: {
-                        Label("실험실", systemImage: "slider.horizontal.3")
-                    }.buttonStyle(.glass)
+                HStack(spacing: 8) {
+                    Button { focusedBeach = nil; searchText = "" } label: { Label("내 주변", systemImage: "location.fill") }.buttonStyle(.glass)
                     Spacer()
-                    Button { showsList = true } label: {
-                        Label("바다 목록", systemImage: "list.bullet")
-                    }.buttonStyle(.glassProminent)
+                    NavigationLink { BeachComparisonView(beaches: nearbyBeaches) } label: {
+                        Image(systemName: "rectangle.split.3x1.fill").font(.title3).frame(width: 46, height: 46)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .accessibilityLabel("가까운 바다 비교")
                 }.padding(14)
             }
         }
-        .navigationDestination(item: $selectedBeach) { beach in
-            BeachDetailView(beach: beach, isFavorite: favorites.contains(beach.id)) {
-                if favorites.contains(beach.id) { favorites.remove(beach.id) } else { favorites.insert(beach.id) }
-            } compare: {
-                compareSelection.insert(beach.id)
-            }
-        }
-        .sheet(isPresented: $showsList) {
-            BeachListSheet(selectedBeach: $selectedBeach)
-                .presentationDetents([.medium, .large])
+        .sheet(item: $selectedBeach) { beach in
+            BeachDetailSheet(beach: beach)
+                .presentationDetents([.height(310), .medium])
                 .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled(upThrough: .height(310)))
+        }
+        .sheet(isPresented: $showsFilters) {
+            LayerFilterSheet(selection: $activeLayers).presentationDetents([.height(355)]).presentationDragIndicator(.visible)
         }
     }
 
-    private var forecastPath: [CLLocationCoordinate2D] { [.init(latitude: 36.22, longitude: 129.49), .init(latitude: 36.30, longitude: 129.46), forecastCoordinate] }
-    private var forecastCoordinate: CLLocationCoordinate2D { .init(latitude: 36.30 + forecastHour * 0.014, longitude: 129.46 + forecastHour * 0.004) }
-    private func shifted(_ coordinate: CLLocationCoordinate2D, by longitude: Double) -> CLLocationCoordinate2D { .init(latitude: coordinate.latitude, longitude: coordinate.longitude + longitude) }
-    private func tempColor(_ value: Double) -> Color { value >= 27 ? .red : value >= 26 ? .orange : value >= 25 ? .yellow : .blue }
+    private var timeLabel: String {
+        forecastHour == 0 ? "현재" : forecastHour > 0 ? "+\(Int(forecastHour))h" : "\(Int(forecastHour))h"
+    }
 }
 
 private struct RecommendationBanner: View {
+    let beach: Beach
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -161,9 +114,9 @@ private struct RecommendationBanner: View {
                 Spacer()
                 Text("18분 전 갱신").font(.caption2).foregroundStyle(.secondary)
             }
-            Text("오늘은 월포해수욕장이\n가장 안심돼요")
+            Text("오늘은 \(beach.name)이\n가장 안심돼요")
                 .font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
-            Text("최근 관측이 적고 해류가 연안 반대 방향이에요.")
+            Text(beach.summary)
                 .font(.subheadline).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(16)
@@ -184,6 +137,97 @@ private struct BeachListSheet: View {
     }
 }
 
+private struct LayerFilterSheet: View {
+    @Binding var selection: Set<OceanDisplayLayer>
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(OceanDisplayLayer.allCases) { layer in
+                        Toggle(isOn: Binding(
+                            get: { selection.contains(layer) },
+                            set: { enabled in
+                                if enabled { selection.insert(layer) } else { selection.remove(layer) }
+                            }
+                        )) {
+                            Label(layer.rawValue, systemImage: symbol(for: layer))
+                        }
+                    }
+                } header: {
+                    Text("지도에 중첩할 정보")
+                } footer: {
+                    Text("예상 이동 경로가 기본으로 표시됩니다. 여러 항목을 동시에 켜서 관계를 확인할 수 있어요.")
+                }
+            }
+            .navigationTitle("바다 정보 필터")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func symbol(for layer: OceanDisplayLayer) -> String {
+        switch layer {
+        case .forecast: "point.topleft.down.to.point.bottomright.curvepath"
+        case .current: "water.waves.and.arrow.trianglehead.counterclockwise"
+        case .temperature: "thermometer.variable"
+        }
+    }
+}
+
+private struct CompareSelectionSheet: View {
+    @Binding var selection: Set<Beach.ID>
+    let apply: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+
+    private var filteredBeaches: [Beach] {
+        searchText.isEmpty ? Beach.samples : Beach.samples.filter {
+            $0.name.localizedCaseInsensitiveContains(searchText) || $0.region.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 10) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("해수욕장 비교").font(.headline)
+                        Text("24곳 중 2~4곳 선택 · 현재 \(selection.count)곳").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("지도에서 보기") {
+                        apply()
+                        dismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(selection.count < 2)
+                }
+                .padding(.horizontal)
+
+                List(filteredBeaches) { beach in
+                    Button { toggle(beach.id) } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: selection.contains(beach.id) ? "checkmark.circle.fill" : "circle")
+                                .font(.title3).foregroundStyle(selection.contains(beach.id) ? .blue : .secondary)
+                            BeachRow(beach: beach)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!selection.contains(beach.id) && selection.count >= 4)
+                }
+                .listStyle(.plain)
+                .searchable(text: $searchText, prompt: "해수욕장 이름 또는 지역")
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    private func toggle(_ id: Beach.ID) {
+        if selection.contains(id) { selection.remove(id) }
+        else if selection.count < 4 { selection.insert(id) }
+    }
+}
+
 private struct BeachRow: View {
     let beach: Beach
     var body: some View {
@@ -198,91 +242,76 @@ private struct BeachRow: View {
     }
 }
 
-private struct BeachDetailView: View {
+private struct BeachDetailSheet: View {
     let beach: Beach
-    let isFavorite: Bool
-    let favorite: () -> Void
-    let compare: () -> Void
-    private let timeline: [HourlySafety] = [
-        .init(time: "현재", safety: .calm, reason: "최근 관측 적음"),
-        .init(time: "15시", safety: .calm, reason: "해류 안정"),
-        .init(time: "18시", safety: .caution, reason: "유입 가능성"),
-        .init(time: "내일", safety: .unknown, reason: "예측 변동")
-    ]
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label(beach.safety.rawValue, systemImage: beach.safety.symbol).font(.headline).foregroundStyle(beach.safety.color)
-                    Text(beach.safety == .calm ? "지금은 비교적 안심하고\n방문할 수 있어요" : beach.summary).font(.largeTitle.bold())
-                    Text("\(beach.updatedMinutes)분 전 갱신 · 디자인용 샘플 데이터").font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(beach.name).font(.title2.bold())
+                    Label(beach.safety.rawValue, systemImage: beach.safety.symbol).font(.subheadline.bold()).foregroundStyle(beach.safety.color)
                 }
-                HStack {
-                    metric("수온", String(format: "%.1f°", beach.temperature), "thermometer.medium")
-                    metric("파고", String(format: "%.1fm", beach.wave), "water.waves")
-                    metric("해류", String(format: "%.1fm/s", beach.current), "location.north.fill")
-                    metric("관측", "\(beach.sightings)건", "binoculars.fill")
-                }
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("시간대별 전망").font(.title3.bold())
-                    HStack(alignment: .top, spacing: 8) {
-                        ForEach(timeline) { item in
-                            VStack(spacing: 7) {
-                                Text(item.time).font(.caption.bold())
-                                Image(systemName: item.safety.symbol).foregroundStyle(.white).frame(width: 32, height: 32).background(item.safety.color, in: Circle())
-                                Text(item.reason).font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                            }.frame(maxWidth: .infinity)
-                        }
-                    }.padding().background(.gray.opacity(0.08), in: RoundedRectangle(cornerRadius: 18))
-                }
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("이렇게 판단했어요").font(.title3.bold())
-                    Text(beach.summary).font(.body)
-                    reason("최근 해파리 관측", beach.sightings == 0 ? "위험을 낮추는 요인" : "주의 요인", beach.sightings == 0 ? .mint : .orange)
-                    reason("해류 방향", beach.current < 0.5 ? "연안 유입 가능성 낮음" : "변화 관찰 필요", beach.current < 0.5 ? .mint : .orange)
-                    reason("데이터 신선도", beach.updatedMinutes < 60 ? "최근 정보" : "확인 필요", beach.updatedMinutes < 60 ? .blue : .gray)
-                }
-                DisclosureGroup("예측과 데이터의 한계") {
-                    Text("이 정보는 해양 조건과 관측 자료를 조합한 상대적 판단이며, 공식 특보와 현장 안전요원의 안내를 대체하지 않습니다.").font(.footnote).foregroundStyle(.secondary).padding(.top, 8)
-                }
-                HStack {
-                    Button(action: favorite) { Label(isFavorite ? "저장됨" : "관심 등록", systemImage: isFavorite ? "heart.fill" : "heart") }.buttonStyle(.bordered)
-                    Button(action: compare) { Label("비교 담기", systemImage: "plus.square.on.square") }.buttonStyle(.bordered)
-                    Button("길찾기", systemImage: "arrow.triangle.turn.up.right.diamond.fill") {}.buttonStyle(.borderedProminent)
-                }
-            }.padding()
-        }.navigationTitle(beach.name).navigationBarTitleDisplayMode(.inline)
+                Spacer()
+                Button("닫기", systemImage: "xmark.circle.fill") { dismiss() }.labelStyle(.iconOnly).font(.title2).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 8) {
+                infoCard("출몰 기록", "최근 \(beach.sightings)건", beach.sightings == 0 ? "최근 관측 없음" : "주의 필요", "binoculars.fill", beach.sightings == 0 ? .mint : .orange)
+                infoCard("서핑", surfStatus, String(format: "파고 %.1fm", beach.wave), "figure.surfing", surfColor)
+            }
+            HStack(spacing: 8) {
+                infoCard("해류", String(format: "%.1fm/s", beach.current), beach.current < 0.5 ? "비교적 잔잔" : "흐름 확인", "location.north.fill", .blue)
+                infoCard("수온", String(format: "%.1f°C", beach.temperature), "\(beach.updatedMinutes)분 전", "thermometer.medium", temperatureColor)
+            }
+            Text(beach.summary).font(.footnote).foregroundStyle(.secondary)
+        }
+        .padding(20)
     }
-    private func metric(_ title: String, _ value: String, _ symbol: String) -> some View { VStack(spacing: 6) { Image(systemName: symbol).foregroundStyle(.blue); Text(value).font(.headline); Text(title).font(.caption2).foregroundStyle(.secondary) }.frame(maxWidth: .infinity) }
-    private func reason(_ title: String, _ value: String, _ color: Color) -> some View { HStack { Circle().fill(color).frame(width: 8, height: 8); Text(title); Spacer(); Text(value).foregroundStyle(.secondary) }.font(.subheadline).padding(.vertical, 4) }
+
+    private var surfStatus: String { beach.wave >= 0.7 && beach.wave <= 1.6 && beach.safety != .danger ? "괜찮아요" : "확인 필요" }
+    private var surfColor: Color { surfStatus == "괜찮아요" ? .cyan : .orange }
+    private var temperatureColor: Color { beach.temperature >= 27 ? .red : beach.temperature >= 26 ? .orange : .blue }
+
+    private func infoCard(_ title: String, _ value: String, _ note: String, _ symbol: String, _ color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(title, systemImage: symbol).font(.caption.bold()).foregroundStyle(color)
+            Text(value).font(.headline)
+            Text(note).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading).padding(12)
+        .background(.gray.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+    }
 }
 
 private struct BeachComparisonView: View {
-    @Binding var selection: Set<Beach.ID>
-    private var beaches: [Beach] { Beach.samples.filter { selection.contains($0.id) } }
+    let beaches: [Beach]
+    private var recommendation: Beach? {
+        beaches.sorted {
+            if $0.safety.rank != $1.safety.rank { return $0.safety.rank < $1.safety.rank }
+            return $0.distance < $1.distance
+        }.first
+    }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("현재 조건과 거리를 함께 보면\n월포해수욕장이 가장 적합해요.").font(.title2.bold())
-                Text("비교할 바다 선택").font(.headline)
-                ForEach(Beach.samples) { beach in
-                    Toggle(isOn: Binding(get: { selection.contains(beach.id) }, set: { enabled in if enabled { selection.insert(beach.id) } else { selection.remove(beach.id) } })) { BeachRow(beach: beach) }
-                }
-                if !beaches.isEmpty {
-                    Divider(); Text("선택한 바다").font(.headline)
-                    HStack(alignment: .top, spacing: 10) {
-                        ForEach(beaches.prefix(3)) { beach in
-                            VStack(spacing: 9) {
-                                Image(systemName: beach.safety.symbol).foregroundStyle(.white).frame(width: 38, height: 38).background(beach.safety.color, in: Circle())
-                                Text(beach.name.replacingOccurrences(of: "해수욕장", with: "")).font(.subheadline.bold())
-                                Text(beach.safety.rawValue).foregroundStyle(beach.safety.color)
-                                Divider(); Text("\(beach.distance)km"); Text(String(format: "파고 %.1fm", beach.wave)); Text("관측 \(beach.sightings)건")
-                            }.font(.caption).frame(maxWidth: .infinity).padding(12).background(.gray.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+                Text("현재 조건과 거리를 함께 보면\n\(recommendation?.name ?? "가까운 바다")이 가장 적합해요.").font(.title2.bold())
+                Text("내 위치에서 가까운 바다 \(beaches.count)곳").font(.headline)
+                ForEach(beaches) { beach in
+                    HStack(spacing: 14) {
+                        Image(systemName: beach.safety.symbol).foregroundStyle(.white).frame(width: 42, height: 42).background(beach.safety.color, in: Circle())
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(beach.name).font(.headline)
+                            Text("출몰 \(beach.sightings)건 · 해류 \(String(format: "%.1fm/s", beach.current)) · 수온 \(String(format: "%.1f°C", beach.temperature))")
+                                .font(.caption).foregroundStyle(.secondary)
                         }
+                        Spacer()
+                        VStack(alignment: .trailing) { Text(beach.safety.rawValue).bold().foregroundStyle(beach.safety.color); Text("\(beach.distance)km").font(.caption) }
                     }
+                    .padding(14).background(.gray.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
                 }
             }.padding()
-        }.navigationTitle("바다 비교")
+        }.navigationTitle("가까운 바다 비교").navigationBarTitleDisplayMode(.inline)
     }
 }
 
