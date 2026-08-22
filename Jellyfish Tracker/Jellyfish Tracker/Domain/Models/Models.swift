@@ -305,12 +305,11 @@ struct JellyfishTrack: Identifiable, Hashable {
                 GyeongbukCoastline.mask.isWater($0.coordinate)
             }
             if !waterParticles.isEmpty {
-                let meanLatitude = waterParticles.map(\.coordinate.latitude).reduce(0, +) / Double(waterParticles.count)
-                let meanLongitude = waterParticles.map(\.coordinate.longitude).reduce(0, +) / Double(waterParticles.count)
-                return waterParticles.min {
-                    hypot($0.coordinate.latitude - meanLatitude, $0.coordinate.longitude - meanLongitude)
-                        < hypot($1.coordinate.latitude - meanLatitude, $1.coordinate.longitude - meanLongitude)
-                }?.coordinate ?? waterParticles[0].coordinate
+                if let representativeID = representativeParticleID,
+                   let particle = waterParticles.first(where: { $0.id == representativeID }) {
+                    return particle.coordinate
+                }
+                return waterParticles[0].coordinate
             }
         }
         if hour < 0, !checkpoints.contains(where: { $0.hour < 0 }),
@@ -343,7 +342,8 @@ struct JellyfishTrack: Identifiable, Hashable {
     func historyPath(at hour: Double) -> [CLLocationCoordinate2D] {
         let end = min(hour, 0)
         if checkpoints.contains(where: { $0.hour < 0 }) {
-            return checkpoints.filter { $0.hour <= end }.sorted { $0.hour < $1.hour }.map(\.coordinate)
+            let raw = checkpoints.filter { $0.hour <= end }.sorted { $0.hour < $1.hour }.map(\.coordinate)
+            return Self.waterConstrainedPath(raw, maximumStride: 6)
         }
         // Official regional reports do not contain an exact historical route.
         // Only explicitly labelled demo tracks may synthesize a preview backcast.
@@ -364,17 +364,40 @@ struct JellyfishTrack: Identifiable, Hashable {
         guard hour > 0, supportedFutureHorizon > 0,
               let current = checkpoints.first(where: { $0.hour == 0 })?.coordinate else { return [] }
         let supportedEnd = min(hour, supportedFutureHorizon)
-        let interval = min(max(sampleIntervalHours, 0.5), supportedEnd)
-        var path = [current]
-        var sampleHour = interval
+        let denseInterval = 0.5
+        var raw = [current]
+        var sampleHour = denseInterval
         while sampleHour <= supportedEnd + 0.000_1 {
-            let candidate = coordinate(at: min(sampleHour, supportedEnd))
-            guard Self.segmentIsWater(from: path[path.count - 1], to: candidate) else { break }
-            path.append(candidate)
+            raw.append(coordinate(at: min(sampleHour, supportedEnd)))
             if sampleHour == supportedEnd { break }
-            sampleHour = min(sampleHour + interval, supportedEnd)
+            sampleHour = min(sampleHour + denseInterval, supportedEnd)
         }
-        return path
+        let maximumStride = max(Int(round(max(sampleIntervalHours, 0.5) / denseInterval)), 1)
+        return Self.waterConstrainedPath(raw, maximumStride: maximumStride)
+    }
+
+    /// Simplifies only when the complete replacement chord is water. Near a
+    /// peninsula it restores dense integration points instead of drawing across land.
+    private static func waterConstrainedPath(
+        _ raw: [CLLocationCoordinate2D], maximumStride: Int
+    ) -> [CLLocationCoordinate2D] {
+        guard raw.count > 1 else { return raw }
+        var output = [raw[0]]
+        var start = 0
+        while start < raw.count - 1 {
+            let furthest = min(start + max(maximumStride, 1), raw.count - 1)
+            var selected: Int?
+            for candidate in stride(from: furthest, through: start + 1, by: -1) {
+                if segmentIsWater(from: raw[start], to: raw[candidate]) {
+                    selected = candidate
+                    break
+                }
+            }
+            guard let selected else { break }
+            output.append(raw[selected])
+            start = selected
+        }
+        return output
     }
 
     private static func segmentIsWater(
@@ -390,6 +413,11 @@ struct JellyfishTrack: Identifiable, Hashable {
                 longitude: start.longitude + (end.longitude - start.longitude) * fraction
             ))
         }
+    }
+
+    static func pathStaysInWater(_ path: [CLLocationCoordinate2D]) -> Bool {
+        guard path.count > 1 else { return true }
+        return zip(path, path.dropFirst()).allSatisfy { segmentIsWater(from: $0, to: $1) }
     }
 
     private static func lastWaterCoordinate(
@@ -514,6 +542,17 @@ struct JellyfishTrack: Identifiable, Hashable {
         return Set(particles.enumerated().map { index, particle in
             particle.id >= 0 ? particle.id : index
         })
+    }
+
+    private var representativeParticleID: Int? {
+        guard let referenceHour = particleSnapshots.keys.filter({ $0 >= 0 }).min(),
+              let particles = particleSnapshots[referenceHour], !particles.isEmpty else { return nil }
+        let meanLatitude = particles.map(\.coordinate.latitude).reduce(0, +) / Double(particles.count)
+        let meanLongitude = particles.map(\.coordinate.longitude).reduce(0, +) / Double(particles.count)
+        return particles.min {
+            hypot($0.coordinate.latitude - meanLatitude, $0.coordinate.longitude - meanLongitude)
+                < hypot($1.coordinate.latitude - meanLatitude, $1.coordinate.longitude - meanLongitude)
+        }?.id
     }
 
     private func activeParticleIDs(

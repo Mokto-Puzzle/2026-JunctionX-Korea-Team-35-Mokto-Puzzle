@@ -291,7 +291,9 @@ struct JellyfishPredictionEngine {
     var particleCount = 360
     var stepSeconds = 30.0 * 60.0
     var forecastHours = 24.0
-    var checkpointHours = 3.0
+    // Keep integration checkpoints dense enough to preserve coastal turns. The map
+    // may simplify these points, but it must never invent a chord across land.
+    var checkpointHours = 0.5
 
     func predict(observation: JellyfishObservation, forcing: OceanForcing, seed: UInt64) -> JellyfishPredictionResult {
         predict(
@@ -352,7 +354,11 @@ struct JellyfishPredictionEngine {
         var particles = (0..<count).map { id in
             initialParticle(id: id, observation, sigma: initialSigma, coastline: coastline, random: &random)
         }
-        var points = [predictionPoint(hour: 0, particles: particles, origin: observation.coordinate)]
+        let representativeID = representativeParticleID(in: particles)
+        var points = [predictionPoint(
+            hour: 0, particles: particles, origin: observation.coordinate,
+            representativeID: representativeID
+        )]
 
         for step in 1...steps {
             let hour = Double(step - 1) * stepSeconds / 3600
@@ -392,7 +398,8 @@ struct JellyfishPredictionEngine {
             if step.isMultiple(of: checkpointStep) || step == steps {
                 points.append(predictionPoint(
                     hour: Double(step) * stepSeconds / 3600 * timeDirection,
-                    particles: particles, origin: observation.coordinate
+                    particles: particles, origin: observation.coordinate,
+                    representativeID: representativeID
                 ))
             }
         }
@@ -490,8 +497,18 @@ struct JellyfishPredictionEngine {
         return (speed * sin(radians), speed * cos(radians))
     }
 
+    private func representativeParticleID(in particles: [Particle]) -> Int {
+        let meanEast = particles.map(\.east).reduce(0, +) / Double(particles.count)
+        let meanNorth = particles.map(\.north).reduce(0, +) / Double(particles.count)
+        return particles.min {
+            hypot($0.east - meanEast, $0.north - meanNorth)
+                < hypot($1.east - meanEast, $1.north - meanNorth)
+        }?.id ?? particles[0].id
+    }
+
     private func predictionPoint(
-        hour: Double, particles: [Particle], origin: CLLocationCoordinate2D
+        hour: Double, particles: [Particle], origin: CLLocationCoordinate2D,
+        representativeID: Int
     ) -> JellyfishPredictionPoint {
         let available = particles.filter { !$0.isInactive }
         // Beached particles remain part of the physical distribution so coastal
@@ -501,10 +518,14 @@ struct JellyfishPredictionEngine {
         let meanNorth = included.map(\.north).reduce(0, +) / Double(included.count)
         // An arithmetic centroid can lie on land when particles surround a bay or peninsula.
         // Use the real particle nearest the centroid as the visible tracker coordinate.
-        let representative = included.min {
-            hypot($0.east - meanEast, $0.north - meanNorth)
-                < hypot($1.east - meanEast, $1.north - meanNorth)
-        } ?? included[0]
+        // Follow one physical particle for the whole route. Re-selecting the
+        // centroid-nearest particle at every frame creates impossible teleporting
+        // chords even when every individual particle obeys coastline collision.
+        let representative = included.first(where: { $0.id == representativeID })
+            ?? included.min {
+                hypot($0.east - meanEast, $0.north - meanNorth)
+                    < hypot($1.east - meanEast, $1.north - meanNorth)
+            } ?? included[0]
         let distances = included.map { hypot($0.east - representative.east, $0.north - representative.north) }.sorted()
         let index = min(Int(Double(distances.count - 1) * 0.80), distances.count - 1)
         return .init(
