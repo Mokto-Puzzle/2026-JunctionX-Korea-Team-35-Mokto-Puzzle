@@ -49,6 +49,8 @@ enum AppColor {
     }
 
     enum Fill {
+        static let secondary = Primitive.Common.shade100
+
         enum OnMap {
             static let red = color(red: 1, green: 0.1333333403, blue: 0, opacity: 0.2000000029)
             static let orange = color(red: 1, green: 0.5843137503, blue: 0, opacity: 0.2000000029)

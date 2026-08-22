@@ -198,6 +198,7 @@ struct JellyMapView: View {
             MainMapSearchSheet(
                 searchText: $model.searchText,
                 searchFocused: $searchFocused,
+                isSearchFocused: searchFocused,
                 bottomInset: bottomInset,
                 selectedBeach: sheetBeach,
                 searchExpanded: searchExpanded,

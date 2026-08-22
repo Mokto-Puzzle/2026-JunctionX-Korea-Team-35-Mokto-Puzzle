@@ -3,6 +3,7 @@ import SwiftUI
 struct MainMapSearchSheet: View {
     @Binding var searchText: String
     let searchFocused: FocusState<Bool>.Binding
+    let isSearchFocused: Bool
     let bottomInset: CGFloat
     let selectedBeach: Beach?
     let searchExpanded: Bool
@@ -35,6 +36,8 @@ struct MainMapSearchSheet: View {
             .contentShape(.rect)
             .gesture(sheetDragGesture)
             .animation(.interactiveSpring(response: 0.34, dampingFraction: 0.88), value: resultSheetExpanded)
+            .padding(.horizontal, isSearchFocused ? floatingSheetHorizontalInset : 0)
+            .animation(.interactiveSpring(response: 0.34, dampingFraction: 0.88), value: isSearchFocused)
     }
 
     private var sheetContent: some View {
@@ -53,7 +56,7 @@ struct MainMapSearchSheet: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if searchExpanded {
+            } else if searchExpanded && !searchText.isEmpty {
                 searchResults
                     .padding(.horizontal, 20)
                     .padding(.top, 14)
@@ -92,7 +95,7 @@ struct MainMapSearchSheet: View {
         }
         .padding(.horizontal, 14)
         .frame(height: 44)
-        .background(AppColor.Primitive.Common.shade100.opacity(0.58), in: .capsule)
+        .background(searchFieldFill, in: .capsule)
     }
 
     private var searchResults: some View {
@@ -184,6 +187,10 @@ struct MainMapSearchSheet: View {
     private var searchFieldTopFromSheet: CGFloat { 41 }
     private var searchFieldTopGap: CGFloat { searchFieldTopFromSheet - 7 - 5 }
     private var expandedSheetHeight: CGFloat { 550 + bottomInset }
+    private var floatingSheetHorizontalInset: CGFloat { 6 }
+    private var searchFieldFill: Color {
+        isSearchFocused ? AppColor.Fill.secondary : AppColor.Primitive.Common.shade100.opacity(0.58)
+    }
 }
 
 struct BeachResultSummaryContent {
@@ -287,6 +294,7 @@ private struct MainMapSearchSheetPreview: View {
         MainMapSearchSheet(
             searchText: $searchText,
             searchFocused: $searchFocused,
+            isSearchFocused: false,
             bottomInset: 34,
             selectedBeach: beach,
             searchExpanded: false,
@@ -327,6 +335,7 @@ private struct MainMapSearchSheetPreview: View {
     MainMapSearchSheet(
         searchText: $searchText,
         searchFocused: $searchFocused,
+        isSearchFocused: false,
         bottomInset: 34,
         selectedBeach: nil,
         searchExpanded: false,
@@ -351,5 +360,41 @@ private struct MainMapSearchSheetPreview: View {
         onDragExpansionChange: { _ in }
     )
     .frame(width: 402, height: 126, alignment: .bottom)
+    .background(Color(red: 0.78, green: 0.94, blue: 1.0))
+}
+
+#Preview("Search Sheet Focused") {
+    @Previewable @State var searchText = ""
+    @Previewable @State var resultSheetExpanded = true
+    @FocusState var searchFocused: Bool
+
+    MainMapSearchSheet(
+        searchText: $searchText,
+        searchFocused: $searchFocused,
+        isSearchFocused: true,
+        bottomInset: 34,
+        selectedBeach: nil,
+        searchExpanded: true,
+        resultSheetExpanded: $resultSheetExpanded,
+        filteredBeaches: MockOceanDataProvider.beaches,
+        riskForBeach: { $0.baseRisk },
+        markedRiskForBeach: { $0.baseRisk.shortTitle },
+        distanceTextForBeach: { _ in "1.2 km" },
+        summaryForBeach: { beach in
+            BeachResultSummaryContent(
+                beach: beach,
+                risk: .good,
+                jellyfishText: "None",
+                currentText: "0.06 m/s",
+                waterText: "24.2°C",
+                usesMockRisk: true
+            )
+        },
+        onSubmit: {},
+        onClear: {},
+        onSelectBeach: { _ in },
+        onDragExpansionChange: { _ in }
+    )
+    .frame(width: 402, height: 584, alignment: .bottom)
     .background(Color(red: 0.78, green: 0.94, blue: 1.0))
 }
