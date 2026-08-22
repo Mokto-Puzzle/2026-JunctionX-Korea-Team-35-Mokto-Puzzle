@@ -169,7 +169,14 @@ struct JellyMapView: View {
 
                     if history.count > 1 {
                         MapPolyline(coordinates: history)
-                            .stroke(AppColor.Map.routeHistory, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                            .stroke(
+                                AppColor.Map.routeHistory,
+                                style: StrokeStyle(
+                                    lineWidth: routeLineWidth,
+                                    lineCap: .round,
+                                    dash: routeDashPattern
+                                )
+                            )
                     }
                     if forecast.count > 1 {
                         ForEach(routeSegments(for: forecast)) { segment in
