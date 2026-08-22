@@ -101,7 +101,7 @@ struct JellyMapView: View {
                 .presentationContentInteraction(.resizes)
                 .interactiveDismissDisabled()
         }
-        .tint(Color.jellyMint)
+        .tint(AppColor.Text.accent)
         .preferredColorScheme(.light)
     }
 
@@ -142,7 +142,7 @@ struct JellyMapView: View {
                     CLLocationCoordinate2D(latitude: 36.055, longitude: 129.392),
                     CLLocationCoordinate2D(latitude: 36.027, longitude: 129.414)
                 ])
-                .foregroundStyle(Color.jellyCoral.opacity(0.16))
+                .foregroundStyle(AppColor.LegacyTracker.coral.opacity(0.16))
 
                 Annotation("", coordinate: CLLocationCoordinate2D(latitude: 36.104, longitude: 129.438)) {
                     MainMapJellyfishMarker(status: nil, mock: false)
@@ -156,21 +156,21 @@ struct JellyMapView: View {
 
                     if history.count > 1 {
                         MapPolyline(coordinates: history)
-                            .stroke(Color.white.opacity(0.9), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                            .stroke(AppColor.Map.routeHistory, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                     }
                     if forecast.count > 1 {
                         MapPolyline(coordinates: forecast)
-                            .stroke(Color.jellyMint.opacity(0.85), style: StrokeStyle(lineWidth: 5, lineCap: .round, dash: [8, 7]))
+                            .stroke(AppColor.Text.accent.opacity(0.85), style: StrokeStyle(lineWidth: 5, lineCap: .round, dash: [8, 7]))
                     }
                     if model.forecastHour > 0 {
                         ForEach(displayedParticles, id: \.offset) { item in
                             MapCircle(center: item.element.coordinate, radius: item.element.isBeached ? 260 : 180)
-                                .foregroundStyle((item.element.isBeached ? Color.orange : Color.jellyMint).opacity(0.26))
+                                .foregroundStyle(item.element.isBeached ? AppColor.Map.beachedParticle : AppColor.Text.accent.opacity(0.26))
                         }
                     }
                     MapCircle(center: track.coordinate(at: model.forecastHour), radius: track.uncertaintyRadius(at: model.forecastHour))
-                        .foregroundStyle(Color.jellyCoral.opacity(model.forecastHour == 0 ? 0.13 : 0.10))
-                        .stroke(Color.jellyCoral.opacity(0.36), lineWidth: 1)
+                        .foregroundStyle(AppColor.LegacyTracker.coral.opacity(model.forecastHour == 0 ? 0.13 : 0.10))
+                        .stroke(AppColor.LegacyTracker.coral.opacity(0.36), lineWidth: 1)
                     Annotation("", coordinate: track.coordinate(at: model.forecastHour)) {
                         MainMapJellyfishMarker(
                             status: track.originKind == .officialRegionEstimate ? "REGION EST." : nil,
@@ -190,7 +190,7 @@ struct JellyMapView: View {
                             Text(model.annotated(String(format: "%.2f", beach.marine.currentSpeed), for: beach, fields: .current))
                                 .font(.caption2.monospacedDigit().bold())
                         }
-                        .foregroundStyle(Color.jellyMint)
+                        .foregroundStyle(AppColor.Text.accent)
                         .padding(6)
                         .background(.ultraThinMaterial, in: .rect(cornerRadius: 9))
                     }
@@ -346,7 +346,7 @@ struct JellyMapView: View {
 
     private func errorToast(_ message: String) -> some View {
         HStack {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(AppColor.Icon.warning)
             Text(message).font(.caption).lineLimit(2)
             Spacer()
             Button("Retry") { Task { await model.load() } }.buttonStyle(.bordered)

@@ -12,18 +12,18 @@ struct NearbyComparisonView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.trackerNavy.ignoresSafeArea()
+                AppColor.LegacyTracker.navy.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 14) {
                         recommendation
                         HStack {
-                            Text("AUTO: NEAREST \(nearby.count)").font(.caption.monospaced().bold()).foregroundStyle(Color.trackerCyan)
+                            Text("AUTO: NEAREST \(nearby.count)").font(.caption.monospaced().bold()).foregroundStyle(AppColor.LegacyTracker.cyan)
                             Spacer()
-                            Text(model.updatedText).font(.caption2.monospaced()).foregroundStyle(.secondary)
+                            Text(model.updatedText).font(.caption2.monospaced()).foregroundStyle(AppColor.Text.secondary)
                         }
                         ForEach(nearby) { beach in comparisonCard(beach) }
                         Text("! = mock/fallback only · REGION ESTIMATE = official NIFS area, not an exact coordinate · OUTDATED/NO DATA are shown separately. Not an official safety advisory.")
-                            .font(.caption).foregroundStyle(.secondary).padding(.vertical, 6)
+                            .font(.caption).foregroundStyle(AppColor.Text.secondary).padding(.vertical, 6)
                     }
                     .padding()
                 }
@@ -41,7 +41,7 @@ struct NearbyComparisonView: View {
 
     private var recommendation: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "checkmark.shield.fill").font(.title2).foregroundStyle(Color.seafoam)
+            Image(systemName: "checkmark.shield.fill").font(.title2).foregroundStyle(AppColor.LegacyTracker.seafoam)
             VStack(alignment: .leading, spacing: 4) {
                 Text(best.map {
                     model.recommendationUsesMockData(for: $0)
@@ -51,7 +51,7 @@ struct NearbyComparisonView: View {
                     .font(.headline)
                 if let best {
                     Text(model.recommendationReason(for: best, from: userCoordinate))
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .font(.subheadline).foregroundStyle(AppColor.Text.secondary)
                 }
             }
             Spacer()
@@ -68,20 +68,20 @@ struct NearbyComparisonView: View {
                     HStack {
                         Text(beach.displayName).font(.headline)
                         if isBest {
-                            Text("BEST PICK").font(.caption2.monospaced().bold()).foregroundStyle(Color.trackerNavy)
+                            Text("BEST PICK").font(.caption2.monospaced().bold()).foregroundStyle(AppColor.LegacyTracker.navy)
                                 .padding(.horizontal, 5).padding(.vertical, 3)
-                                .background(Color.trackerCream, in: .rect(cornerRadius: 3))
+                                .background(AppColor.LegacyTracker.cream, in: .rect(cornerRadius: 3))
                         }
                     }
                     Text("\(beach.displayCity) · \(model.annotated(String(format: "%.1f km", model.distance(from: userCoordinate, to: beach.coordinate)), for: beach, fields: .location))")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(AppColor.Text.secondary)
                 }
                 Spacer()
-                Text(model.markedRisk(for: beach).uppercased()).font(.caption.monospaced().bold()).foregroundStyle(Color.trackerNavy)
+                Text(model.markedRisk(for: beach).uppercased()).font(.caption.monospaced().bold()).foregroundStyle(AppColor.LegacyTracker.navy)
                     .padding(.horizontal, 7).padding(.vertical, 5)
-                    .background(Color.risk(risk), in: .rect(cornerRadius: 4))
+                    .background(AppColor.risk(risk), in: .rect(cornerRadius: 4))
             }
-            Divider().overlay(Color.trackerCyan.opacity(0.35))
+            Divider().overlay(AppColor.LegacyTracker.cyan.opacity(0.35))
             HStack(spacing: 0) {
                 comparisonMetric("IMPACT", model.markedImpact(for: beach))
                 comparisonMetric("SIGHTINGS", model.annotated(beach.recentJellyfish ? "\(beach.recentSightingsCount) recent" : "None", for: beach, fields: .jellyfishSightings))
@@ -91,7 +91,7 @@ struct NearbyComparisonView: View {
             HStack {
                 Text("Recommended: \(model.annotated(beach.recommendedVisitTime, for: beach, fields: .baseRisk))").font(.caption.bold())
                 Spacer()
-                Text(model.updatedText).font(.caption2).foregroundStyle(.secondary)
+                Text(model.updatedText).font(.caption2).foregroundStyle(AppColor.Text.secondary)
             }
         }
         .padding(14).trackerPanel(cornerRadius: 12)
@@ -99,7 +99,7 @@ struct NearbyComparisonView: View {
 
     private func comparisonMetric(_ label: String, _ value: String) -> some View {
         VStack(spacing: 4) {
-            Text(label).font(.caption2.monospaced().bold()).foregroundStyle(Color.trackerCyan)
+            Text(label).font(.caption2.monospaced().bold()).foregroundStyle(AppColor.LegacyTracker.cyan)
             Text(value).font(.caption.bold()).lineLimit(1).minimumScaleFactor(0.65)
         }
         .frame(maxWidth: .infinity)

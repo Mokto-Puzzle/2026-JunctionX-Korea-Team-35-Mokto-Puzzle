@@ -46,7 +46,7 @@ struct MainMapSystemSearchSheet: View {
                 .fill(.ultraThinMaterial)
                 .overlay {
                     UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38)
-                        .fill(Color.white.opacity(0.28))
+                        .fill(AppColor.Fill.elevatedSurface)
                 }
         }
         .padding(.horizontal, isSearchFocused ? 6 : 0)
@@ -55,13 +55,13 @@ struct MainMapSystemSearchSheet: View {
 
     private var sheetGrabber: some View {
         Capsule()
-            .fill(Color.jellyCaption.opacity(0.48))
+            .fill(AppColor.Text.caption.opacity(0.48))
             .frame(width: 36, height: 5)
     }
 
     private var searchField: some View {
         HStack {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            Image(systemName: "magnifyingglass").foregroundStyle(AppColor.Icon.secondary)
             TextField("Search", text: $searchText)
                 .focused(searchFocused)
                 .submitLabel(.search)
@@ -70,10 +70,10 @@ struct MainMapSystemSearchSheet: View {
                 Button(action: onClear) {
                     Image(systemName: "xmark.circle.fill")
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppColor.Icon.secondary)
                 .accessibilityLabel("Clear search")
             } else {
-                Image(systemName: "mic.fill").foregroundStyle(.secondary)
+                Image(systemName: "mic.fill").foregroundStyle(AppColor.Icon.secondary)
             }
         }
         .padding(.horizontal, 14)
@@ -88,19 +88,19 @@ struct MainMapSystemSearchSheet: View {
                     Button { onSelectBeach(beach) } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "mappin.circle.fill")
-                                .foregroundStyle(Color.risk(riskForBeach(beach)))
+                                .foregroundStyle(AppColor.risk(riskForBeach(beach)))
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(beach.displayName)
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(Color.jellyInk)
+                                    .foregroundStyle(AppColor.Text.normal)
                                 Text("\(beach.displayCity) · \(distanceTextForBeach(beach))")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(AppColor.Text.secondary)
                             }
                             Spacer()
                             Text(markedRiskForBeach(beach))
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color.risk(riskForBeach(beach)))
+                                .foregroundStyle(AppColor.risk(riskForBeach(beach)))
                         }
                         .padding(.vertical, 10)
                     }
@@ -121,7 +121,7 @@ struct MainMapSystemSearchSheet: View {
     private var searchFieldTopGap: CGFloat { searchFieldTopFromSheet - 7 - 5 }
     private var searchFieldTopFromSheet: CGFloat { 41 }
     private var searchFieldFill: Color {
-        isSearchFocused ? AppColor.Fill.secondary : AppColor.Primitive.Common.shade100.opacity(0.58)
+        isSearchFocused ? AppColor.Fill.secondary : AppColor.Fill.translucentControl
     }
 }
 
@@ -155,7 +155,7 @@ private struct MainMapSystemSearchSheetPreview: View {
             onSelectBeach: { _ in }
         )
         .frame(width: 402, height: 550)
-        .background(Color(red: 0.78, green: 0.94, blue: 1.0))
+        .background(AppColor.Preview.cyanBackdrop)
     }
 }
 

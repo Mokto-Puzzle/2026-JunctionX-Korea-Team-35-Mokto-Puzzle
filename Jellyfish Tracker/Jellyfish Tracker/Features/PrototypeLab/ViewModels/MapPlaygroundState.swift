@@ -167,9 +167,9 @@ struct JellyfishLocation: Identifiable, Hashable {
 
         var color: Color {
             switch self {
-            case .low: .mint
-            case .medium: .orange
-            case .high: .red
+            case .low: AppColor.Prototype.mint
+            case .medium: AppColor.Prototype.orange
+            case .high: AppColor.Prototype.red
             }
         }
 

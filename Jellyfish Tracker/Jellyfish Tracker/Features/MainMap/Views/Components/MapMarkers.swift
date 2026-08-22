@@ -13,10 +13,10 @@ struct BeachPin: View {
             if let temperature {
                 Text(temperature)
                     .font(.custom("Helvetica-Bold", size: 14, relativeTo: .caption))
-                    .foregroundStyle(Color.risk(risk))
+                    .foregroundStyle(AppColor.risk(risk))
                     .padding(.horizontal, 9)
                     .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.74), in: .capsule)
+                    .background(AppColor.Fill.Button.normalRaised, in: .capsule)
                     .zIndex(2)
             }
             VStack(spacing: 2) {
@@ -26,7 +26,7 @@ struct BeachPin: View {
                     .frame(width: 24, height: 24)
                 Text(shortName)
                     .font(.custom("Helvetica", size: 14, relativeTo: .caption))
-                    .foregroundStyle(Color.jellyInk)
+                    .foregroundStyle(AppColor.Text.normal)
                     .lineLimit(1)
                     .minimumScaleFactor(0.76)
             }
@@ -34,7 +34,7 @@ struct BeachPin: View {
             .background(showsRadius ? radiusFill : .clear, in: .circle)
             .overlay {
                 if selected {
-                    Circle().stroke(Color.risk(risk).opacity(0.55), lineWidth: 2)
+                    Circle().stroke(AppColor.risk(risk).opacity(0.55), lineWidth: 2)
                 }
             }
         }
@@ -50,7 +50,7 @@ struct BeachPin: View {
         case .good: AppColor.Fill.OnMap.green
         case .caution: AppColor.Fill.OnMap.orange
         case .later: AppColor.Fill.OnMap.red
-        case .unknown: Color.gray.opacity(0.18)
+        case .unknown: AppColor.Fill.OnMap.unknown
         }
     }
 
@@ -77,18 +77,18 @@ struct MainMapJellyfishMarker: View {
     var body: some View {
         VStack(spacing: 4) {
             if let status {
-                Text(status).font(.caption2.weight(.bold)).foregroundStyle(Color.jellyCoral)
+                Text(status).font(.caption2.weight(.bold)).foregroundStyle(AppColor.LegacyTracker.coral)
             } else if mock {
-                Text("!").font(.caption.weight(.bold)).foregroundStyle(Color.jellyCoral)
+                Text("!").font(.caption.weight(.bold)).foregroundStyle(AppColor.LegacyTracker.coral)
             }
             Image("JellyMascot")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 45, height: 45)
                 .padding(9)
-                .background(Color.jellyCoral.opacity(0.88), in: .circle)
-                .overlay { Circle().stroke(Color.jellyCoral.opacity(0.30), lineWidth: 10) }
-                .shadow(color: Color.jellyCoral.opacity(0.24), radius: 8)
+                .background(AppColor.LegacyTracker.coral.opacity(0.88), in: .circle)
+                .overlay { Circle().stroke(AppColor.LegacyTracker.coral.opacity(0.30), lineWidth: 10) }
+                .shadow(color: AppColor.LegacyTracker.coral.opacity(0.24), radius: 8)
         }
     }
 }
@@ -114,5 +114,5 @@ struct MainMapJellyfishMarker: View {
         MainMapJellyfishMarker(status: nil, mock: false)
     }
     .padding()
-    .background(Color(red: 0.72, green: 0.92, blue: 0.98))
+    .background(AppColor.Preview.markerBackdrop)
 }

@@ -8,14 +8,14 @@ struct OceanLayerMenu: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Ocean Layers")
                 .font(.custom("Helvetica-Bold", size: 12, relativeTo: .caption))
-                .foregroundStyle(Color.jellyInk)
+                .foregroundStyle(AppColor.Text.normal)
             layerToggle("Predicted Route", symbol: "point.topleft.down.to.point.bottomright.curvepath", layer: .predictedPath)
             layerToggle("Water Temperature", symbol: "thermometer.variable", layer: .temperature)
             Toggle(isOn: $visualizeTemperature) {
                 Label("Visualize Temperature", systemImage: "field.of.view.wide.fill")
-                    .foregroundStyle(Color.jellyInk)
+                    .foregroundStyle(AppColor.Text.normal)
             }
-            .tint(Color.jellyMint)
+            .tint(AppColor.Text.accent)
             .font(.custom("Helvetica", size: 13, relativeTo: .body))
             .padding(.vertical, 4)
         }
@@ -24,13 +24,13 @@ struct OceanLayerMenu: View {
         .background {
             RoundedRectangle(cornerRadius: 21)
                 .fill(.ultraThinMaterial)
-                .overlay(Color.white.opacity(0.60))
+                .overlay(AppColor.Fill.translucentControl)
         }
         .overlay {
             RoundedRectangle(cornerRadius: 21)
-                .stroke(Color.white.opacity(0.65), lineWidth: 1)
+                .stroke(AppColor.Stroke.light, lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.12), radius: 20, y: 8)
+        .shadow(color: AppColor.Shadow.light, radius: 20, y: 8)
     }
 
     private func layerToggle(_ title: String, symbol: String, layer: MapLayer) -> some View {
@@ -41,9 +41,9 @@ struct OceanLayerMenu: View {
                 else { selectedLayers.remove(layer) }
             }
         )) {
-            Label(title, systemImage: symbol).foregroundStyle(Color.jellyInk)
+            Label(title, systemImage: symbol).foregroundStyle(AppColor.Text.normal)
         }
-        .tint(Color.jellyMint)
+        .tint(AppColor.Text.accent)
         .font(.custom("Helvetica", size: 13, relativeTo: .body))
         .padding(.vertical, 4)
     }
@@ -54,5 +54,5 @@ struct OceanLayerMenu: View {
     @Previewable @State var visualizeTemperature = false
     OceanLayerMenu(selectedLayers: $layers, visualizeTemperature: $visualizeTemperature)
         .padding()
-        .background(Color(red: 0.78, green: 0.94, blue: 1.0))
+        .background(AppColor.Preview.cyanBackdrop)
 }

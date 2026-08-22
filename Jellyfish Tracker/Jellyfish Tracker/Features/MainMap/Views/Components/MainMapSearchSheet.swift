@@ -27,12 +27,12 @@ struct MainMapSearchSheet: View {
                     .fill(.ultraThinMaterial)
                     .overlay {
                         UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38)
-                            .fill(Color.white.opacity(0.28))
+                            .fill(AppColor.Fill.elevatedSurface)
                     }
                     .padding(.bottom, -bottomInset)
                     .ignoresSafeArea(edges: .bottom)
             }
-            .shadow(color: .black.opacity(0.12), radius: 25, y: -4)
+            .shadow(color: AppColor.Shadow.light, radius: 25, y: -4)
             .contentShape(.rect)
             .gesture(sheetDragGesture)
             .animation(.interactiveSpring(response: 0.34, dampingFraction: 0.88), value: resultSheetExpanded)
@@ -72,13 +72,13 @@ struct MainMapSearchSheet: View {
 
     private var sheetGrabber: some View {
         Capsule()
-            .fill(Color.jellyCaption.opacity(0.48))
+            .fill(AppColor.Text.caption.opacity(0.48))
             .frame(width: 36, height: 5)
     }
 
     private var searchField: some View {
         HStack {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            Image(systemName: "magnifyingglass").foregroundStyle(AppColor.Icon.secondary)
             TextField("Search", text: $searchText)
                 .focused(searchFocused)
                 .submitLabel(.search)
@@ -87,10 +87,10 @@ struct MainMapSearchSheet: View {
                 Button(action: onClear) {
                     Image(systemName: "xmark.circle.fill")
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppColor.Icon.secondary)
                 .accessibilityLabel("Clear search")
             } else {
-                Image(systemName: "mic.fill").foregroundStyle(.secondary)
+                Image(systemName: "mic.fill").foregroundStyle(AppColor.Icon.secondary)
             }
         }
         .padding(.horizontal, 14)
@@ -105,19 +105,19 @@ struct MainMapSearchSheet: View {
                     Button { onSelectBeach(beach) } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "mappin.circle.fill")
-                                .foregroundStyle(Color.risk(riskForBeach(beach)))
+                                .foregroundStyle(AppColor.risk(riskForBeach(beach)))
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(beach.displayName)
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(Color.jellyInk)
+                                    .foregroundStyle(AppColor.Text.normal)
                                 Text("\(beach.displayCity) · \(distanceTextForBeach(beach))")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(AppColor.Text.secondary)
                             }
                             Spacer()
                             Text(markedRiskForBeach(beach))
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color.risk(riskForBeach(beach)))
+                                .foregroundStyle(AppColor.risk(riskForBeach(beach)))
                         }
                         .padding(.vertical, 10)
                     }
@@ -189,7 +189,7 @@ struct MainMapSearchSheet: View {
     private var expandedSheetHeight: CGFloat { 550 + bottomInset }
     private var floatingSheetHorizontalInset: CGFloat { 6 }
     private var searchFieldFill: Color {
-        isSearchFocused ? AppColor.Fill.secondary : AppColor.Primitive.Common.shade100.opacity(0.58)
+        isSearchFocused ? AppColor.Fill.secondary : AppColor.Fill.translucentControl
     }
 }
 
@@ -212,12 +212,12 @@ struct BeachResultSummary: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(content.beach.displayName)
                         .font(.custom("Helvetica-Bold", size: 18, relativeTo: .headline))
-                        .foregroundStyle(Color.jellyInk)
+                        .foregroundStyle(AppColor.Text.normal)
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
                     Text("\(content.beach.displayCity), Gyeongsangbuk-do")
                         .font(.custom("Helvetica", size: 13, relativeTo: .caption))
-                        .foregroundStyle(Color.jellyCaption)
+                        .foregroundStyle(AppColor.Text.caption)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
@@ -231,7 +231,7 @@ struct BeachResultSummary: View {
                 ResultMetric(assetName: "IconWater", title: "water", value: content.waterText)
             }
             .frame(height: 100)
-            .background(Color.white.opacity(0.62), in: .rect(cornerRadius: 16))
+            .background(AppColor.Fill.resultCard, in: .rect(cornerRadius: 16))
         }
     }
 }
@@ -250,7 +250,7 @@ private struct ResultRiskBadge: View {
             Text(risk.shortTitle.uppercased() + (usesMockRisk ? "" : ""))
                 .font(.custom("Helvetica", size: 12, relativeTo: .caption))
         }
-        .foregroundStyle(Color.jellyMint)
+        .foregroundStyle(AppColor.Text.accent)
         .padding(.horizontal, 12)
         .frame(height: 34)
         .background(AppColor.Primitive.Green.shade100.opacity(0.72), in: .capsule)
@@ -269,13 +269,13 @@ private struct ResultMetric: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 18, height: 18)
-                .foregroundStyle(Color.jellyMint)
+                .foregroundStyle(AppColor.Icon.accent)
             Text(title)
                 .font(.custom("Helvetica", size: 13, relativeTo: .caption))
-                .foregroundStyle(Color.jellyCaption)
+                .foregroundStyle(AppColor.Text.caption)
             Text(value)
                 .font(.custom("Helvetica-Bold", size: 18, relativeTo: .body))
-                .foregroundStyle(Color.jellyInk)
+                .foregroundStyle(AppColor.Text.normal)
                 .lineLimit(1)
                 .minimumScaleFactor(0.68)
         }
@@ -319,7 +319,7 @@ private struct MainMapSearchSheetPreview: View {
             onDragExpansionChange: { _ in }
         )
         .frame(width: 402, height: 330, alignment: .bottom)
-        .background(Color(red: 0.78, green: 0.94, blue: 1.0))
+        .background(AppColor.Preview.cyanBackdrop)
     }
 }
 
@@ -360,7 +360,7 @@ private struct MainMapSearchSheetPreview: View {
         onDragExpansionChange: { _ in }
     )
     .frame(width: 402, height: 126, alignment: .bottom)
-    .background(Color(red: 0.78, green: 0.94, blue: 1.0))
+    .background(AppColor.Preview.cyanBackdrop)
 }
 
 #Preview("Search Sheet Focused") {
@@ -396,5 +396,5 @@ private struct MainMapSearchSheetPreview: View {
         onDragExpansionChange: { _ in }
     )
     .frame(width: 402, height: 584, alignment: .bottom)
-    .background(Color(red: 0.78, green: 0.94, blue: 1.0))
+    .background(AppColor.Preview.cyanBackdrop)
 }

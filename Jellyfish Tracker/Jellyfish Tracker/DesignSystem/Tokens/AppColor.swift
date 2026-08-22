@@ -33,6 +33,27 @@ enum AppColor {
             static let shade500 = color(red: 1, green: 0.5843137503, blue: 0)
         }
 
+        enum Blue {
+            static let shade500 = color(red: 0, green: 0.4784313725, blue: 1)
+            static let shade600 = color(red: 0, green: 0.38, blue: 0.82)
+        }
+
+        enum Cyan {
+            static let shade500 = color(red: 0.2, green: 0.86, blue: 1)
+        }
+
+        enum Yellow {
+            static let shade500 = color(red: 1, green: 0.8, blue: 0)
+        }
+
+        enum Purple {
+            static let shade500 = color(red: 0.6862745098, green: 0.3215686275, blue: 0.8705882353)
+        }
+
+        enum Indigo {
+            static let shade500 = color(red: 0.3450980392, green: 0.3372549020, blue: 0.8392156863)
+        }
+
         enum Common {
             static let shade000 = color(red: 1, green: 1, blue: 1)
             static let shade050 = color(red: 0.9764705896, green: 0.9843137264, blue: 0.9843137264)
@@ -50,16 +71,25 @@ enum AppColor {
 
     enum Fill {
         static let secondary = Primitive.Common.shade100
+        static let elevatedSurface = Primitive.Common.shade000.opacity(0.28)
+        static let resultCard = Primitive.Common.shade000.opacity(0.62)
+        static let translucentControl = Primitive.Common.shade000.opacity(0.58)
 
         enum OnMap {
             static let red = color(red: 1, green: 0.1333333403, blue: 0, opacity: 0.2000000029)
             static let orange = color(red: 1, green: 0.5843137503, blue: 0, opacity: 0.2000000029)
             static let green = color(red: 0, green: 0.8000000119, blue: 0.6941176653, opacity: 0.2000000029)
+            static let unknown = Primitive.Common.shade500.opacity(0.18)
         }
 
         enum Button {
             static let accent = Primitive.Green.shade600
             static let normal = color(red: 1, green: 1, blue: 1, opacity: 0.5)
+            static let normalSoft = Primitive.Common.shade000.opacity(0.42)
+            static let normalMedium = Primitive.Common.shade000.opacity(0.58)
+            static let normalStrong = Primitive.Common.shade000.opacity(0.72)
+            static let normalRaised = Primitive.Common.shade000.opacity(0.74)
+            static let border = Primitive.Common.shade000.opacity(0.68)
         }
     }
 
@@ -67,12 +97,77 @@ enum AppColor {
         static let normal = Primitive.Common.shade900
         static let accent = Primitive.Green.shade600
         static let caption = Primitive.Common.shade500
+        static let secondary = caption
         static let white = Primitive.Common.shade000
     }
 
     enum Icon {
         static let accent = Primitive.Green.shade600
         static let normal = Primitive.Green.shade050
+        static let secondary = Primitive.Common.shade600
+        static let warning = Primitive.Orange.shade500
+    }
+
+    enum Stroke {
+        static let light = Primitive.Common.shade000.opacity(0.65)
+        static let strongLight = Primitive.Common.shade000.opacity(0.9)
+    }
+
+    enum Shadow {
+        static let light = Primitive.Common.shade900.opacity(0.12)
+        static let medium = Primitive.Common.shade900.opacity(0.24)
+        static let strong = Primitive.Common.shade900.opacity(0.55)
+        static let topStrong = Primitive.Common.shade900.opacity(0.75)
+        static let whiteGlow = Primitive.Common.shade000
+    }
+
+    enum Risk {
+        static let good = Primitive.Green.shade600
+        static let caution = Primitive.Orange.shade500
+        static let high = Primitive.Red.shade500
+        static let unknown = Primitive.Common.shade500
+    }
+
+    enum Map {
+        static let routeHistory = Primitive.Common.shade000.opacity(0.9)
+        static let beachedParticle = Primitive.Orange.shade500.opacity(0.26)
+        static let error = Primitive.Orange.shade500
+    }
+
+    enum Preview {
+        static let cyanBackdrop = color(red: 0.78, green: 0.94, blue: 1.0)
+        static let lightCyanBackdrop = color(red: 0.75, green: 0.94, blue: 1.0)
+        static let controlBackdrop = color(red: 0.68, green: 0.91, blue: 1.0)
+        static let markerBackdrop = color(red: 0.72, green: 0.92, blue: 0.98)
+    }
+
+    enum LegacyTracker {
+        static let navy = color(red: 0.02, green: 0.08, blue: 0.13)
+        static let panel = color(red: 0.05, green: 0.18, blue: 0.23)
+        static let cyan = Primitive.Cyan.shade500
+        static let cream = Primitive.Orange.shade050
+        static let coral = Primitive.Red.shade400
+        static let seafoam = Primitive.Green.shade600
+    }
+
+    enum Prototype {
+        static let mint = Primitive.Green.shade600
+        static let yellow = Primitive.Yellow.shade500
+        static let orange = Primitive.Orange.shade500
+        static let red = Primitive.Red.shade500
+        static let purple = Primitive.Purple.shade500
+        static let cyan = Primitive.Cyan.shade500
+        static let blue = Primitive.Blue.shade500
+        static let indigo = Primitive.Indigo.shade500
+    }
+
+    static func risk(_ risk: RiskLevel) -> Color {
+        switch risk {
+        case .good: AppColor.Risk.good
+        case .caution: AppColor.Risk.caution
+        case .later: AppColor.Risk.high
+        case .unknown: AppColor.Risk.unknown
+        }
     }
 
     private static func color(red: Double, green: Double, blue: Double, opacity: Double = 1) -> Color {

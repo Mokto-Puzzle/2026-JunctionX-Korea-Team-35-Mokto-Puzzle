@@ -85,30 +85,37 @@ struct MapPlaygroundView: View {
         }
 
         if state.marineLayer == .coastalRisk || state.marineLayer == .all {
-            MapPolyline(coordinates: coastalRiskLine)
+                MapPolyline(coordinates: coastalRiskLine)
                 .stroke(
-                    Gradient(colors: [.mint, .yellow, .orange, .red, .orange, .mint]),
+                    Gradient(colors: [
+                        AppColor.Prototype.mint,
+                        AppColor.Prototype.yellow,
+                        AppColor.Prototype.orange,
+                        AppColor.Prototype.red,
+                        AppColor.Prototype.orange,
+                        AppColor.Prototype.mint
+                    ]),
                     style: StrokeStyle(lineWidth: 14, lineCap: .round, lineJoin: .round)
                 )
         }
 
         if state.marineLayer == .forecast || state.marineLayer == .all {
             MapPolyline(coordinates: forecastPath)
-                .stroke(.purple.opacity(0.9), style: StrokeStyle(lineWidth: 4, lineCap: .round, dash: [8, 7]))
+                .stroke(AppColor.Prototype.purple.opacity(0.9), style: StrokeStyle(lineWidth: 4, lineCap: .round, dash: [8, 7]))
 
             if state.showsForecastUncertainty {
                 MapCircle(center: forecastCoordinate, radius: 5_000 + state.forecastHour * 650)
-                    .foregroundStyle(.purple.opacity(0.12))
-                    .stroke(.purple.opacity(0.65), style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+                    .foregroundStyle(AppColor.Prototype.purple.opacity(0.12))
+                    .stroke(AppColor.Prototype.purple.opacity(0.65), style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
             }
 
             Annotation("예상 위치", coordinate: forecastCoordinate) {
                 VStack(spacing: 4) {
                     Image(systemName: "aqi.medium")
                         .font(.title2.bold())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppColor.Text.white)
                         .frame(width: 42, height: 42)
-                        .background(.purple.gradient, in: Circle())
+                        .background(AppColor.Prototype.purple.gradient, in: Circle())
                     if state.showsMarineValues {
                         Text("+\(Int(state.forecastHour))시간")
                             .font(.caption2.bold())
@@ -153,20 +160,25 @@ struct MapPlaygroundView: View {
 
         if state.overlayMode == .risk || state.overlayMode == .all {
             MapPolygon(coordinates: riskPolygon)
-                .foregroundStyle(.red.opacity(state.overlayOpacity))
-                .stroke(.red.opacity(0.9), lineWidth: 2)
+                .foregroundStyle(AppColor.Prototype.red.opacity(state.overlayOpacity))
+                .stroke(AppColor.Prototype.red.opacity(0.9), lineWidth: 2)
         }
 
         if state.overlayMode == .radius || state.overlayMode == .all {
             MapCircle(center: state.locations[2].coordinate, radius: 12_000)
-                .foregroundStyle(.orange.opacity(state.overlayOpacity))
-                .stroke(.orange, style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
+                .foregroundStyle(AppColor.Prototype.orange.opacity(state.overlayOpacity))
+                .stroke(AppColor.Prototype.orange, style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
         }
 
         if state.overlayMode == .route || state.overlayMode == .all {
             MapPolyline(coordinates: state.locations.map(\.coordinate))
                 .stroke(
-                    Gradient(colors: [.mint, .cyan, .orange, .red]),
+                    Gradient(colors: [
+                        AppColor.Prototype.mint,
+                        AppColor.Prototype.cyan,
+                        AppColor.Prototype.orange,
+                        AppColor.Prototype.red
+                    ]),
                     style: StrokeStyle(lineWidth: state.routeWidth, lineCap: .round, lineJoin: .round)
                 )
         }
@@ -239,20 +251,20 @@ struct MapPlaygroundView: View {
     private func temperatureColor(_ temperature: Double) -> Color {
         switch state.marinePalette {
         case .thermal:
-            if temperature < 24.8 { return .blue }
-            if temperature < 26 { return .cyan }
-            if temperature < 27 { return .yellow }
-            return .red
+            if temperature < 24.8 { return AppColor.Prototype.blue }
+            if temperature < 26 { return AppColor.Prototype.cyan }
+            if temperature < 27 { return AppColor.Prototype.yellow }
+            return AppColor.Prototype.red
         case .ocean:
-            if temperature < 24.8 { return .indigo }
-            if temperature < 26 { return .blue }
-            if temperature < 27 { return .cyan }
-            return .mint
+            if temperature < 24.8 { return AppColor.Prototype.indigo }
+            if temperature < 26 { return AppColor.Prototype.blue }
+            if temperature < 27 { return AppColor.Prototype.cyan }
+            return AppColor.Prototype.mint
         case .risk:
-            if temperature < 24.8 { return .mint }
-            if temperature < 26 { return .yellow }
-            if temperature < 27 { return .orange }
-            return .red
+            if temperature < 24.8 { return AppColor.Prototype.mint }
+            if temperature < 26 { return AppColor.Prototype.yellow }
+            if temperature < 27 { return AppColor.Prototype.orange }
+            return AppColor.Prototype.red
         }
     }
 }
@@ -272,7 +284,7 @@ private struct CurrentMarker: View {
                 .foregroundStyle(currentColor)
                 .rotationEffect(.degrees(sample.currentDirection))
                 .scaleEffect(pulses ? 1.12 : 0.88)
-                .shadow(color: .white, radius: 2)
+                .shadow(color: AppColor.Shadow.whiteGlow, radius: 2)
             if showsValue {
                 Text(String(format: "%.1f m/s", sample.currentSpeed))
                     .font(.system(size: 9, weight: .bold, design: .rounded))
@@ -291,9 +303,9 @@ private struct CurrentMarker: View {
     }
 
     private var currentColor: Color {
-        if sample.currentSpeed < 0.5 { return .cyan }
-        if sample.currentSpeed < 0.9 { return .blue }
-        return .purple
+        if sample.currentSpeed < 0.5 { return AppColor.Prototype.cyan }
+        if sample.currentSpeed < 0.9 { return AppColor.Prototype.blue }
+        return AppColor.Prototype.purple
     }
 }
 
@@ -305,8 +317,8 @@ private struct WaveMarker: View {
         VStack(spacing: 1) {
             Image(systemName: "water.waves")
                 .font(.system(size: 13 + sample.waveHeight * 7, weight: .semibold))
-                .foregroundStyle(sample.waveHeight >= 1.5 ? .orange : .blue)
-                .shadow(color: .white, radius: 2)
+                .foregroundStyle(sample.waveHeight >= 1.5 ? AppColor.Prototype.orange : AppColor.Prototype.blue)
+                .shadow(color: AppColor.Shadow.whiteGlow, radius: 2)
             if showsValue {
                 Text(String(format: "%.1fm", sample.waveHeight))
                     .font(.system(size: 9, weight: .bold, design: .rounded))
@@ -323,9 +335,9 @@ private struct MarineDetailCard: View {
         HStack(spacing: 14) {
             Image(systemName: "water.waves.and.arrow.trianglehead.up")
                 .font(.title2)
-                .foregroundStyle(.white)
+                .foregroundStyle(AppColor.Text.white)
                 .frame(width: 46, height: 46)
-                .background(.blue.gradient, in: Circle())
+                .background(AppColor.Prototype.blue.gradient, in: Circle())
             VStack(alignment: .leading, spacing: 5) {
                 Text("해양 관측 샘플").font(.headline)
                 HStack(spacing: 12) {
@@ -334,7 +346,7 @@ private struct MarineDetailCard: View {
                     Label(String(format: "%.1fm/s", sample.currentSpeed), systemImage: "location.north.fill")
                 }
                 .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppColor.Text.secondary)
             }
             Spacer()
             Button("닫기", systemImage: "xmark", action: close)
@@ -366,12 +378,12 @@ private struct JellyfishMarker: View {
 
             Image(systemName: location.risk.symbol)
                 .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(showsBackground ? .white : location.risk.color)
+                .foregroundStyle(showsBackground ? AppColor.Text.white : location.risk.color)
                 .frame(width: 38, height: 38)
                 .background {
                     if showsBackground {
                         Circle().fill(location.risk.color.gradient)
-                        Circle().stroke(.white.opacity(0.9), lineWidth: 2)
+                        Circle().stroke(AppColor.Stroke.strongLight, lineWidth: 2)
                     }
                 }
                 .shadow(color: location.risk.color.opacity(0.35), radius: 8, y: 4)
@@ -389,7 +401,7 @@ private struct SelectionCard: View {
         HStack(spacing: 12) {
             Image(systemName: location.risk.symbol)
                 .font(.title3.bold())
-                .foregroundStyle(.white)
+                .foregroundStyle(AppColor.Text.white)
                 .frame(width: 44, height: 44)
                 .background(location.risk.color.gradient, in: Circle())
 
@@ -397,7 +409,7 @@ private struct SelectionCard: View {
                 Text(location.name).font(.headline)
                 Text("\(location.subtitle) · 출몰 위험 \(location.risk.rawValue)")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppColor.Text.secondary)
             }
 
             Spacer()

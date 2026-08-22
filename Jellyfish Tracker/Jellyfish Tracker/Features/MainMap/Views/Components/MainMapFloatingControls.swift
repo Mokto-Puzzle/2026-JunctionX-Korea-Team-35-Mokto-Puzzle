@@ -12,11 +12,11 @@ struct MainMapFloatingControls: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 21, height: 21)
-                    .foregroundStyle(Color.jellyMint)
+                    .foregroundStyle(AppColor.Icon.accent)
                     .frame(width: 38, height: 38)
-                    .background(Color.white.opacity(0.72), in: .circle)
+                    .background(AppColor.Fill.Button.normalStrong, in: .circle)
                     .overlay {
-                        Circle().stroke(Color.jellyMint.opacity(0.25), lineWidth: 1)
+                        Circle().stroke(AppColor.Icon.accent.opacity(0.25), lineWidth: 1)
                     }
             }
             .buttonStyle(.plain)
@@ -49,5 +49,5 @@ struct MainMapFloatingControls: View {
 #Preview("Floating Controls") {
     MainMapFloatingControls(onNearMe: {}, onCompare: {})
         .padding(.vertical, 40)
-        .background(Color(red: 0.68, green: 0.91, blue: 1.0))
+        .background(AppColor.Preview.controlBackdrop)
 }

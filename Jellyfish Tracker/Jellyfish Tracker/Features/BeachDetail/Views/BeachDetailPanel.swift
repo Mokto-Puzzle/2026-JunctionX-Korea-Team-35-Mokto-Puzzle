@@ -15,7 +15,7 @@ struct BeachDetailPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Capsule().fill(Color.trackerCream.opacity(0.55))
+            Capsule().fill(AppColor.LegacyTracker.cream.opacity(0.55))
                 .frame(width: 42, height: 5).padding(.top, 9).padding(.bottom, 8)
             header
             if expanded {
@@ -28,12 +28,12 @@ struct BeachDetailPanel: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: expanded ? 590 : 186, alignment: .top)
-        .background(Color.trackerPanel.opacity(0.98), in: .rect(topLeadingRadius: 18, topTrailingRadius: 18))
+        .background(AppColor.LegacyTracker.panel.opacity(0.98), in: .rect(topLeadingRadius: 18, topTrailingRadius: 18))
         .overlay(alignment: .top) {
             UnevenRoundedRectangle(topLeadingRadius: 18, topTrailingRadius: 18)
-                .stroke(Color.trackerCyan, lineWidth: 2)
+                .stroke(AppColor.LegacyTracker.cyan, lineWidth: 2)
         }
-        .shadow(color: Color.trackerNavy.opacity(0.75), radius: 18, y: -4)
+        .shadow(color: AppColor.Shadow.topStrong, radius: 18, y: -4)
         .gesture(
             DragGesture(minimumDistance: 18).onEnded { value in
                 withAnimation(.snappy) {
@@ -49,13 +49,13 @@ struct BeachDetailPanel: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(beach.displayName).font(.title3.bold()).fontDesign(.rounded)
                 Text("\(beach.displayCity) · Gyeongsangbuk-do")
-                    .font(.caption.monospaced()).foregroundStyle(.secondary)
+                    .font(.caption.monospaced()).foregroundStyle(AppColor.Text.secondary)
             }
             Spacer()
             Text((risk.shortTitle + (predictionUsesMockData || beach.usesMock(.baseRisk) ? "!" : "")).uppercased())
-                .font(.caption.monospaced().bold()).foregroundStyle(Color.trackerNavy)
+                .font(.caption.monospaced().bold()).foregroundStyle(AppColor.LegacyTracker.navy)
                 .padding(.horizontal, 8).padding(.vertical, 6)
-                .background(Color.risk(risk), in: .rect(cornerRadius: 5))
+                .background(AppColor.risk(risk), in: .rect(cornerRadius: 5))
             Button { withAnimation(.snappy) { expanded.toggle() } } label: {
                 Image(systemName: expanded ? "chevron.down" : "chevron.up")
             }
@@ -81,8 +81,8 @@ struct BeachDetailPanel: View {
 
     private func quickMetric(_ title: String, value: String, icon: String) -> some View {
         VStack(spacing: 4) {
-            Image(systemName: icon).foregroundStyle(Color.trackerCyan)
-            Text(title).font(.caption2.monospaced().bold()).foregroundStyle(.secondary)
+            Image(systemName: icon).foregroundStyle(AppColor.LegacyTracker.cyan)
+            Text(title).font(.caption2.monospaced().bold()).foregroundStyle(AppColor.Text.secondary)
             Text(value).font(.caption.bold()).lineLimit(1).minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)
@@ -120,18 +120,18 @@ struct BeachDetailPanel: View {
                 provenanceRow("Water temperature", field: .waterTemperature)
                 provenanceRow("Location", field: .location)
                 Text("! is used only for mock or fallback values. Regional estimates, outdated values, and missing values have separate labels.")
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(.caption2).foregroundStyle(AppColor.Text.secondary)
             }
             if !beach.displayFacilities.isEmpty {
                 detailSection("FACILITIES", icon: "info.circle") {
                     Text(beach.displayFacilities.joined(separator: " · "))
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .font(.subheadline).foregroundStyle(AppColor.Text.secondary)
                 }
             }
             Text("This prototype is for trip planning only. Official marine warnings, beach closures, and on-site lifeguard instructions always take priority.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(AppColor.Text.secondary)
                 .padding(12)
-                .background(Color.trackerNavy.opacity(0.45), in: .rect(cornerRadius: 8))
+                .background(AppColor.LegacyTracker.navy.opacity(0.45), in: .rect(cornerRadius: 8))
         }
         .padding(.horizontal, 16)
     }
@@ -139,33 +139,33 @@ struct BeachDetailPanel: View {
     private var statusSummary: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: risk == .good ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
-                .font(.title2).foregroundStyle(Color.risk(risk))
+                .font(.title2).foregroundStyle(AppColor.risk(risk))
             VStack(alignment: .leading, spacing: 3) {
                 Text(risk == .good ? "Good conditions for a beach visit" : "Review conditions before visiting")
                     .font(.headline)
                 Text(beach.recentJellyfish
-                     ? "Recent sightings and the forecast route increase uncertainty near this beach."
+                    ? "Recent sightings and the forecast route increase uncertainty near this beach."
                      : "No recent sightings are reported and projected impact is currently low.")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                    .font(.subheadline).foregroundStyle(AppColor.Text.secondary)
             }
         }
         .padding(12)
-        .background(Color.risk(risk).opacity(0.12), in: .rect(cornerRadius: 8))
+        .background(AppColor.risk(risk).opacity(0.12), in: .rect(cornerRadius: 8))
     }
 
     private func detailSection<Content: View>(_ title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             Label(title, systemImage: icon)
-                .font(.caption.monospaced().bold()).foregroundStyle(Color.trackerCyan)
+                .font(.caption.monospaced().bold()).foregroundStyle(AppColor.LegacyTracker.cyan)
             content()
         }
         .padding(12)
-        .background(Color.trackerNavy.opacity(0.38), in: .rect(cornerRadius: 8))
+        .background(AppColor.LegacyTracker.navy.opacity(0.38), in: .rect(cornerRadius: 8))
     }
 
     private func metricRow(_ label: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(label).foregroundStyle(.secondary)
+            Text(label).foregroundStyle(AppColor.Text.secondary)
             Spacer(minLength: 12)
             Text(value).fontWeight(.semibold).multilineTextAlignment(.trailing)
         }
