@@ -23,20 +23,24 @@ struct MainMapFloatingControls: View {
             .accessibilityLabel("Near me")
             Spacer()
             Button(action: onCompare) {
-                HStack(spacing: 8) {
+                HStack(alignment: .center, spacing: 6) {
                     Image("IconCompare")
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 21, height: 21)
+                        .frame(width: 24, height: 24)
                     Text("Compare")
-                        .font(.custom("Helvetica-Bold", size: 16, relativeTo: .callout))
+                        .font(.custom("Helvetica-Bold", size: 18, relativeTo: .callout))
                 }
-                .padding(.horizontal, 2)
+                .foregroundStyle(AppColor.Text.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 2)
+                .frame(height: 40, alignment: .center)
+                .background(AppColor.Fill.Button.accent)
+                .cornerRadius(999)
             }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
-            .controlSize(.large)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Compare beaches")
         }
         .padding(.horizontal, 20)
     }
