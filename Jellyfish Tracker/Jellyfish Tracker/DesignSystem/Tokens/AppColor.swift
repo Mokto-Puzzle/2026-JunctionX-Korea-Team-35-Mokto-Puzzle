@@ -74,7 +74,7 @@ enum AppColor {
         static let elevatedSurface = Primitive.Common.shade000.opacity(0.28)
         static let resultCard = Primitive.Common.shade000.opacity(0.62)
         static let translucentControl = Primitive.Common.shade000.opacity(0.58)
-        static let searchSheetSurface = Primitive.Common.shade000.opacity(0.74)
+        static let searchSheetSurface = Primitive.Common.shade000.opacity(0.5)
         static let filterPanelSurface = Primitive.Common.shade000.opacity(0.64)
         static let transparentOverlay = Primitive.Common.shade900.opacity(0)
         static let screenBackground = Primitive.Common.shade050
