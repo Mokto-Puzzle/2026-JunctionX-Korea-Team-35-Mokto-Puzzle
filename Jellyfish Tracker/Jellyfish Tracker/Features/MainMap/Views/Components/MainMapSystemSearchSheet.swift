@@ -46,8 +46,10 @@ struct MainMapSystemSearchSheet: View {
                 .fill(.ultraThinMaterial)
                 .overlay {
                     UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38)
-                        .fill(AppColor.Fill.elevatedSurface)
+                        .fill(AppColor.Fill.searchSheetSurface)
                 }
+                .padding(.bottom, -80)
+                .ignoresSafeArea(edges: .bottom)
         }
         .padding(.horizontal, isSearchFocused ? 6 : 0)
         .animation(.interactiveSpring(response: 0.34, dampingFraction: 0.88), value: isSearchFocused)

@@ -5,47 +5,58 @@ struct OceanLayerMenu: View {
     @Binding var visualizeTemperature: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 17) {
             Text("Ocean Layers")
-                .font(.custom("Helvetica-Bold", size: 12, relativeTo: .caption))
+                .font(.custom("Helvetica-Bold", size: 14, relativeTo: .caption))
                 .foregroundStyle(AppColor.Text.normal)
-            layerToggle("Predicted Route", symbol: "point.topleft.down.to.point.bottomright.curvepath", layer: .predictedPath)
-            layerToggle("Water Temperature", symbol: "thermometer.variable", layer: .temperature)
-            Toggle(isOn: $visualizeTemperature) {
-                Label("Visualize Temperature", systemImage: "field.of.view.wide.fill")
-                    .foregroundStyle(AppColor.Text.normal)
+
+            VStack(spacing: 19) {
+                layerToggle("Predicted Route", symbol: "point.topleft.down.to.point.bottomright.curvepath", layer: .predictedPath)
+                layerToggle("Water Temperature", symbol: "thermometer.variable", layer: .temperature)
+                toggleRow("Visualize Temperature", symbol: "diamond.fill", isOn: $visualizeTemperature)
             }
-            .tint(AppColor.Text.accent)
-            .font(.custom("Helvetica", size: 13, relativeTo: .body))
-            .padding(.vertical, 4)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 20)
+        .padding(.top, 19)
+        .padding(.bottom, 18)
+        .frame(maxWidth: .infinity, minHeight: 219, maxHeight: 219, alignment: .topLeading)
         .background {
-            RoundedRectangle(cornerRadius: 21)
+            RoundedRectangle(cornerRadius: 30)
                 .fill(.ultraThinMaterial)
-                .overlay(AppColor.Fill.translucentControl)
+                .overlay(AppColor.Fill.filterPanelSurface)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 21)
+            RoundedRectangle(cornerRadius: 30)
                 .stroke(AppColor.Stroke.light, lineWidth: 1)
         }
         .shadow(color: AppColor.Shadow.light, radius: 20, y: 8)
     }
 
     private func layerToggle(_ title: String, symbol: String, layer: MapLayer) -> some View {
-        Toggle(isOn: Binding(
+        toggleRow(title, symbol: symbol, isOn: Binding(
             get: { selectedLayers.contains(layer) },
             set: { enabled in
                 if enabled { selectedLayers.insert(layer) }
                 else { selectedLayers.remove(layer) }
             }
-        )) {
-            Label(title, systemImage: symbol).foregroundStyle(AppColor.Text.normal)
+        ))
+    }
+
+    private func toggleRow(_ title: String, symbol: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppColor.Icon.accent)
+                .frame(width: 24)
+            Text(title)
+                .font(.custom("Helvetica", size: 16, relativeTo: .body))
+                .foregroundStyle(AppColor.Text.normal)
+            Spacer(minLength: 12)
+            Toggle(title, isOn: isOn)
+                .labelsHidden()
+                .tint(AppColor.Fill.Button.accent)
         }
-        .tint(AppColor.Text.accent)
-        .font(.custom("Helvetica", size: 13, relativeTo: .body))
-        .padding(.vertical, 4)
+        .frame(height: 33)
     }
 }
 

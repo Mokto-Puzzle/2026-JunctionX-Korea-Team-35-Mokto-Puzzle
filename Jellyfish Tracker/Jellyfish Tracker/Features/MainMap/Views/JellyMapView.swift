@@ -32,12 +32,12 @@ struct JellyMapView: View {
                     .ignoresSafeArea(edges: .top)
 
                 if showLayerMenu {
+                    filterDismissOverlay
                     layerMenu
-                        .frame(maxWidth: 250, alignment: .trailing)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                        .padding(.trailing, 18)
-                        .padding(.top, 292)
-                        .transition(.scale(scale: 0.94, anchor: .top).combined(with: .opacity))
+                        .padding(.horizontal, 20)
+                        .padding(.top, Self.layerMenuTop)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .transition(.scale(scale: 0.96, anchor: .top).combined(with: .opacity))
                 }
 
                 if model.isLoading {
@@ -69,10 +69,13 @@ struct JellyMapView: View {
         }
         .onChange(of: searchFocused) { _, focused in
             withAnimation(.snappy) {
-                searchExpanded = focused && model.selectedBeach == nil
-                resultSheetExpanded = focused || resultSheetExpanded
+                searchExpanded = focused && sheetBeach == nil
+                resultSheetExpanded = focused || resultSheetExpanded || searchSheetDetent != Self.collapsedSearchDetent
                 if focused {
-                    searchSheetDetent = Self.expandedSearchDetent
+                    showLayerMenu = false
+                    if searchSheetDetent == Self.collapsedSearchDetent {
+                        searchSheetDetent = Self.resultSearchDetent
+                    }
                 }
             }
         }
@@ -82,6 +85,11 @@ struct JellyMapView: View {
                 if detent == Self.collapsedSearchDetent {
                     searchFocused = false
                     searchExpanded = false
+                } else if shouldFocusSearch(for: detent) {
+                    searchExpanded = true
+                    focusSearchFieldAfterSheetSettles()
+                } else {
+                    searchExpanded = sheetBeach == nil && !model.searchText.isEmpty
                 }
             }
         }
@@ -96,7 +104,7 @@ struct JellyMapView: View {
                 )
                 .presentationDragIndicator(.hidden)
                 .presentationCornerRadius(38)
-                .presentationBackground(.clear)
+                .presentationBackground(AppColor.Fill.searchSheetSurface)
                 .presentationBackgroundInteraction(.enabled(upThrough: Self.collapsedSearchDetent))
                 .presentationContentInteraction(.resizes)
                 .interactiveDismissDisabled()
@@ -215,6 +223,17 @@ struct JellyMapView: View {
 
     private var layerMenu: some View {
         OceanLayerMenu(selectedLayers: $model.selectedLayers, visualizeTemperature: $visualizeTemperature)
+    }
+
+    private var filterDismissOverlay: some View {
+        AppColor.Fill.transparentOverlay
+            .ignoresSafeArea()
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.snappy) {
+                    showLayerMenu = false
+                }
+            }
     }
 
     private func bottomControls(bottomInset: CGFloat) -> some View {
@@ -366,6 +385,19 @@ struct JellyMapView: View {
         searchSheetDetent = Self.resultSearchDetent
     }
 
+    private func shouldFocusSearch(for detent: PresentationDetent) -> Bool {
+        detent == Self.resultSearchDetent
+            && model.searchText.isEmpty
+            && model.selectedBeach == nil
+    }
+
+    private func focusSearchFieldAfterSheetSettles() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            guard shouldFocusSearch(for: searchSheetDetent) else { return }
+            searchFocused = true
+        }
+    }
+
     private func focus(on beach: Beach) {
         model.focus(on: beach)
         mapPosition = model.position
@@ -375,6 +407,7 @@ struct JellyMapView: View {
     private static let collapsedSearchDetent = PresentationDetent.height(collapsedSheetHeight)
     private static let resultSearchDetent = PresentationDetent.height(304)
     private static let expandedSearchDetent = PresentationDetent.height(550)
+    private static let layerMenuTop: CGFloat = 246
 }
 
 #Preview("Jelly Map") {

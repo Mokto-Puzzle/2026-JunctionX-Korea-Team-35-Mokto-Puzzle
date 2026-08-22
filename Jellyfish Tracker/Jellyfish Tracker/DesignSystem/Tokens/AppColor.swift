@@ -74,6 +74,9 @@ enum AppColor {
         static let elevatedSurface = Primitive.Common.shade000.opacity(0.28)
         static let resultCard = Primitive.Common.shade000.opacity(0.62)
         static let translucentControl = Primitive.Common.shade000.opacity(0.58)
+        static let searchSheetSurface = Primitive.Common.shade000.opacity(0.74)
+        static let filterPanelSurface = Primitive.Common.shade000.opacity(0.64)
+        static let transparentOverlay = Primitive.Common.shade900.opacity(0)
 
         enum OnMap {
             static let red = color(red: 1, green: 0.1333333403, blue: 0, opacity: 0.2000000029)
