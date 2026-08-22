@@ -10,9 +10,33 @@
 		F6FD057C303953BC000546FA /* Jellyfish Tracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Jellyfish Tracker.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		F6FD0590303953BD000546FA /* Exceptions for "Jellyfish Tracker" folder in "Jellyfish Tracker" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"App/Navigation/.gitkeep-app-navigation",
+				"Data/DTO/.gitkeep-data-dto",
+				"Data/Network/.gitkeep-data-network",
+				"Data/Repositories/.gitkeep-data-repositories",
+				"DesignSystem/Components/.gitkeep-design-components",
+				"DesignSystem/Modifiers/.gitkeep-design-modifiers",
+				"DesignSystem/Tokens/.gitkeep-design-tokens",
+				"Domain/Models/.gitkeep-domain-models",
+				"Features/JellyfishMap/ViewModels/.gitkeep-map-viewmodels",
+				"Features/JellyfishMap/Views/Components/.gitkeep-map-components",
+				"Shared/Extensions/.gitkeep-shared-extensions",
+				"Shared/Utilities/.gitkeep-shared-utilities",
+			);
+			target = F6FD057B303953BC000546FA /* Jellyfish Tracker */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F6FD057E303953BC000546FA /* Jellyfish Tracker */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F6FD0590303953BD000546FA /* Exceptions for "Jellyfish Tracker" folder in "Jellyfish Tracker" target */,
+			);
 			path = "Jellyfish Tracker";
 			sourceTree = "<group>";
 		};
