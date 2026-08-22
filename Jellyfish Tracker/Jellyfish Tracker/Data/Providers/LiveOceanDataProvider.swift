@@ -949,9 +949,12 @@ struct TidalCurrentClient {
         var combined: [TidalCurrentSample] = []
         // The official field is a spatial grid for one instant. Three-hour frames
         // match the marine forecast cadence while keeping request use bounded.
-        for hour in stride(from: 0, through: 24, by: 3) {
-            let date = referenceDate.addingTimeInterval(Double(hour) * 3_600)
-            if let frame = try? await fetch(at: date) { combined.append(contentsOf: frame) }
+        await withTaskGroup(of: [TidalCurrentSample].self) { group in
+            for hour in stride(from: 0, through: 24, by: 3) {
+                let date = referenceDate.addingTimeInterval(Double(hour) * 3_600)
+                group.addTask { (try? await fetch(at: date)) ?? [] }
+            }
+            for await frame in group { combined.append(contentsOf: frame) }
         }
         guard !combined.isEmpty else { throw LiveAPIError.invalidResponse }
         return combined
