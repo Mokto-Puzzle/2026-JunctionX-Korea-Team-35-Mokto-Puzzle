@@ -183,7 +183,11 @@ struct JellyMapView: View {
                             MapPolyline(coordinates: [segment.start, segment.end])
                                 .stroke(
                                     segment.color.opacity(0.82),
-                                    style: StrokeStyle(lineWidth: routeLineWidth, lineCap: .round, dash: routeDashPattern)
+                                    style: StrokeStyle(
+                                        lineWidth: routeLineWidth,
+                                        lineCap: .round,
+                                        dash: forecastRouteDashPattern
+                                    )
                                 )
                         }
                     }
@@ -193,7 +197,10 @@ struct JellyMapView: View {
                                 .foregroundStyle(item.element.isBeached ? AppColor.Map.beachedParticle : AppColor.Text.accent.opacity(0.26))
                         }
                     }
-                    MapCircle(center: track.coordinate(at: model.forecastHour), radius: track.uncertaintyRadius(at: model.forecastHour))
+                    MapCircle(
+                        center: track.coordinate(at: model.forecastHour),
+                        radius: displayedUncertaintyRadius(for: track)
+                    )
                         .foregroundStyle(AppColor.LegacyTracker.coral.opacity(model.forecastHour == 0 ? 0.13 : 0.10))
                             .stroke(AppColor.LegacyTracker.coral.opacity(0.36), lineWidth: 1)
                 }
@@ -503,6 +510,28 @@ struct JellyMapView: View {
         default:
             [8, 18]
         }
+    }
+
+    /// Forecast is a directional guide, so use fewer, larger dashes than the
+    /// integration cadence. The underlying 30-minute particle path is unchanged.
+    private var forecastRouteDashPattern: [CGFloat] {
+        switch mapCameraDistance {
+        case ..<45_000:
+            [10, 16]
+        case ..<110_000:
+            [12, 20]
+        case ..<190_000:
+            [14, 24]
+        default:
+            [16, 28]
+        }
+    }
+
+    private func displayedUncertaintyRadius(for track: JellyfishTrack) -> CLLocationDistance {
+        let modeledRadius = track.uncertaintyRadius(at: model.forecastHour)
+        // Keep uncertainty visible without letting a regional estimate dominate
+        // the whole map. This affects presentation only, not impact calculation.
+        return min(max(modeledRadius * 0.55, 450), 3_200)
     }
 
     private var routeLineWidth: CGFloat {
