@@ -6,12 +6,11 @@ struct MainMapRecommendationHeader: View {
     let onFilterTap: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 17) {
             Image("JellyMark")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 50, height: 18, alignment: .leading)
-                .padding(.top, 4)
 
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 7) {
@@ -41,22 +40,13 @@ struct MainMapRecommendationHeader: View {
             TimelineSlider(value: $forecastHour)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 98)
+        .padding(.top, 0)
         .padding(.bottom, 20)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 304, maxHeight: 304, alignment: .bottomLeading)
         .background {
-            ZStack {
-                LinearGradient(
-                    colors: [
-                        AppColor.Primitive.Green.shade050.opacity(0.86),
-                        Color(red: 0.75, green: 0.94, blue: 1.0).opacity(0.88)
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .opacity(0.95)
+            AppColor.Fill.Button.normal
                 .background(.ultraThinMaterial)
-            }
+                .blur(radius: 20)
         }
         .clipShape(.rect(bottomLeadingRadius: 30, bottomTrailingRadius: 30))
         .shadow(color: Color.jellyMint.opacity(0.08), radius: 16, y: 8)

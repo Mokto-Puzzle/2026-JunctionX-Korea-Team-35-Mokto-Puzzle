@@ -26,11 +26,8 @@ struct JellyMapView: View {
         GeometryReader { proxy in
             ZStack(alignment: .top) {
                 map.ignoresSafeArea()
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .frame(height: proxy.safeAreaInsets.top + 8)
-                    .ignoresSafeArea(edges: .top)
                 recommendationHeader
+                    .ignoresSafeArea(edges: .top)
 
                 if showLayerMenu {
                     layerMenu
