@@ -2,9 +2,9 @@ import MapKit
 import SwiftUI
 
 enum OceanDisplayLayer: String, CaseIterable, Identifiable, Hashable {
-    case forecast = "예상 이동 경로"
-    case current = "해류"
-    case temperature = "수온"
+    case forecast = "Predicted Route"
+    case current = "Current"
+    case temperature = "Water Temperature"
     var id: Self { self }
 }
 
@@ -37,7 +37,7 @@ struct OceanVisualizationView: View {
                 MapCircle(center: forecastCoordinate, radius: max(4_000, 7_000 + forecastHour * 250))
                     .foregroundStyle(.purple.opacity(0.18))
                     .stroke(.purple.opacity(0.8), style: .init(lineWidth: 2, dash: [6, 5]))
-                Annotation("예상 위치", coordinate: forecastCoordinate) {
+                Annotation("Predicted Position", coordinate: forecastCoordinate) {
                     VStack(spacing: 3) {
                         Image(systemName: "aqi.medium").font(.title2.bold()).foregroundStyle(.white)
                             .frame(width: 42, height: 42).background(.purple.gradient, in: Circle())
@@ -69,7 +69,7 @@ struct OceanVisualizationView: View {
                                 .frame(width: 42, height: 42).background(beach.safety.color.gradient, in: Circle())
                                 .overlay(Circle().stroke(beach.id == Beach.samples[0].id ? .cyan : .white, lineWidth: beach.id == Beach.samples[0].id ? 4 : 2))
                                 .shadow(radius: 4, y: 2)
-                            Text(beach.id == Beach.samples[0].id ? "추천" : beach.name.replacingOccurrences(of: "해수욕장", with: ""))
+                            Text(beach.id == Beach.samples[0].id ? "Best Pick" : beach.name.replacingOccurrences(of: " Beach", with: ""))
                                 .font(.caption2.bold()).foregroundStyle(beach.id == Beach.samples[0].id ? .cyan : .primary)
                                 .padding(.horizontal, 6).padding(.vertical, 3).background(.regularMaterial, in: Capsule())
                         }
@@ -89,7 +89,7 @@ struct OceanVisualizationView: View {
     }
 
     private var forecastTimeLabel: String {
-        forecastHour == 0 ? "현재 위치" : forecastHour > 0 ? "+\(Int(forecastHour))시간 예상" : "\(abs(Int(forecastHour)))시간 전 기록"
+        forecastHour == 0 ? "Current position" : forecastHour > 0 ? "+\(Int(forecastHour))h forecast" : "\(abs(Int(forecastHour)))h ago"
     }
 
     private var forecastPath: [CLLocationCoordinate2D] {

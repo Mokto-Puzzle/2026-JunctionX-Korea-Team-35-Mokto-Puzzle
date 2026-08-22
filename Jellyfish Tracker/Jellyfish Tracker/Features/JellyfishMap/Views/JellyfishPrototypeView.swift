@@ -47,8 +47,8 @@ private struct HomeMapView: View {
                 HStack(spacing: 8) {
                     HStack {
                         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                        TextField("해수욕장 이름 검색", text: $searchText)
-                        if !searchText.isEmpty { Button("지우기", systemImage: "xmark.circle.fill") { searchText = "" }.labelStyle(.iconOnly).foregroundStyle(.secondary) }
+                        TextField("Search beaches", text: $searchText)
+                        if !searchText.isEmpty { Button("Clear", systemImage: "xmark.circle.fill") { searchText = "" }.labelStyle(.iconOnly).foregroundStyle(.secondary) }
                     }
                     .padding(.horizontal, 12).frame(height: 44)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
@@ -79,13 +79,13 @@ private struct HomeMapView: View {
             VStack {
                 Spacer()
                 HStack(spacing: 8) {
-                    Button { focusedBeach = nil; searchText = "" } label: { Label("내 주변", systemImage: "location.fill") }.buttonStyle(.glass)
+                    Button { focusedBeach = nil; searchText = "" } label: { Label("Near Me", systemImage: "location.fill") }.buttonStyle(.glass)
                     Spacer()
                     NavigationLink { BeachComparisonView(beaches: nearbyBeaches) } label: {
                         Image(systemName: "rectangle.split.3x1.fill").font(.title3).frame(width: 46, height: 46)
                     }
                     .buttonStyle(.glassProminent)
-                    .accessibilityLabel("가까운 바다 비교")
+                    .accessibilityLabel("Compare nearby beaches")
                 }.padding(14)
             }
         }
@@ -101,7 +101,7 @@ private struct HomeMapView: View {
     }
 
     private var timeLabel: String {
-        forecastHour == 0 ? "현재" : forecastHour > 0 ? "+\(Int(forecastHour))h" : "\(Int(forecastHour))h"
+        forecastHour == 0 ? "Now" : forecastHour > 0 ? "+\(Int(forecastHour))h" : "\(Int(forecastHour))h"
     }
 }
 
@@ -110,11 +110,11 @@ private struct RecommendationBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Label("오늘의 추천", systemImage: "sparkles").font(.caption.bold()).foregroundStyle(.blue)
+                Label("TODAY'S PICK", systemImage: "sparkles").font(.caption.bold()).foregroundStyle(.blue)
                 Spacer()
-                Text("18분 전 갱신").font(.caption2).foregroundStyle(.secondary)
+                Text("Updated 18 min ago").font(.caption2).foregroundStyle(.secondary)
             }
-            Text("오늘은 \(beach.name)이\n가장 안심돼요")
+            Text("\(beach.name) is your\nsafest choice today")
                 .font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
             Text(beach.summary)
                 .font(.subheadline).foregroundStyle(.secondary)
@@ -132,7 +132,7 @@ private struct BeachListSheet: View {
         NavigationStack {
             List(Beach.samples) { beach in
                 Button { selectedBeach = beach; dismiss() } label: { BeachRow(beach: beach) }.buttonStyle(.plain)
-            }.navigationTitle("지금 갈 수 있는 바다")
+            }.navigationTitle("Beaches Available Now")
         }
     }
 }
@@ -155,12 +155,12 @@ private struct LayerFilterSheet: View {
                         }
                     }
                 } header: {
-                    Text("지도에 중첩할 정보")
+                    Text("MAP OVERLAYS")
                 } footer: {
-                    Text("예상 이동 경로가 기본으로 표시됩니다. 여러 항목을 동시에 켜서 관계를 확인할 수 있어요.")
+                    Text("The predicted route is shown by default. Turn on multiple layers to explore how they relate.")
                 }
             }
-            .navigationTitle("바다 정보 필터")
+            .navigationTitle("Ocean Layers")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -191,11 +191,11 @@ private struct CompareSelectionSheet: View {
             VStack(spacing: 10) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("해수욕장 비교").font(.headline)
-                        Text("24곳 중 2~4곳 선택 · 현재 \(selection.count)곳").font(.caption).foregroundStyle(.secondary)
+                        Text("Compare Beaches").font(.headline)
+                        Text("Select 2–4 of 24 · \(selection.count) selected").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button("지도에서 보기") {
+                    Button("View on Map") {
                         apply()
                         dismiss()
                     }
@@ -216,7 +216,7 @@ private struct CompareSelectionSheet: View {
                     .disabled(!selection.contains(beach.id) && selection.count >= 4)
                 }
                 .listStyle(.plain)
-                .searchable(text: $searchText, prompt: "해수욕장 이름 또는 지역")
+                .searchable(text: $searchText, prompt: "Beach name or region")
             }
             .padding(.top, 8)
         }
@@ -254,23 +254,23 @@ private struct BeachDetailSheet: View {
                     Label(beach.safety.rawValue, systemImage: beach.safety.symbol).font(.subheadline.bold()).foregroundStyle(beach.safety.color)
                 }
                 Spacer()
-                Button("닫기", systemImage: "xmark.circle.fill") { dismiss() }.labelStyle(.iconOnly).font(.title2).foregroundStyle(.secondary)
+                Button("Close", systemImage: "xmark.circle.fill") { dismiss() }.labelStyle(.iconOnly).font(.title2).foregroundStyle(.secondary)
             }
             HStack(spacing: 8) {
-                infoCard("출몰 기록", "최근 \(beach.sightings)건", beach.sightings == 0 ? "최근 관측 없음" : "주의 필요", "binoculars.fill", beach.sightings == 0 ? .mint : .orange)
-                infoCard("서핑", surfStatus, String(format: "파고 %.1fm", beach.wave), "figure.surfing", surfColor)
+                infoCard("Sightings", "\(beach.sightings) recent", beach.sightings == 0 ? "None reported" : "Use caution", "binoculars.fill", beach.sightings == 0 ? .mint : .orange)
+                infoCard("Surfing", surfStatus, String(format: "Waves %.1fm", beach.wave), "figure.surfing", surfColor)
             }
             HStack(spacing: 8) {
-                infoCard("해류", String(format: "%.1fm/s", beach.current), beach.current < 0.5 ? "비교적 잔잔" : "흐름 확인", "location.north.fill", .blue)
-                infoCard("수온", String(format: "%.1f°C", beach.temperature), "\(beach.updatedMinutes)분 전", "thermometer.medium", temperatureColor)
+                infoCard("Current", String(format: "%.1fm/s", beach.current), beach.current < 0.5 ? "Relatively calm" : "Check direction", "location.north.fill", .blue)
+                infoCard("Water Temp", String(format: "%.1f°C", beach.temperature), "\(beach.updatedMinutes) min ago", "thermometer.medium", temperatureColor)
             }
             Text(beach.summary).font(.footnote).foregroundStyle(.secondary)
         }
         .padding(20)
     }
 
-    private var surfStatus: String { beach.wave >= 0.7 && beach.wave <= 1.6 && beach.safety != .danger ? "괜찮아요" : "확인 필요" }
-    private var surfColor: Color { surfStatus == "괜찮아요" ? .cyan : .orange }
+    private var surfStatus: String { beach.wave >= 0.7 && beach.wave <= 1.6 && beach.safety != .danger ? "Good" : "Check first" }
+    private var surfColor: Color { surfStatus == "Good" ? .cyan : .orange }
     private var temperatureColor: Color { beach.temperature >= 27 ? .red : beach.temperature >= 26 ? .orange : .blue }
 
     private func infoCard(_ title: String, _ value: String, _ note: String, _ symbol: String, _ color: Color) -> some View {
@@ -295,14 +295,14 @@ private struct BeachComparisonView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("현재 조건과 거리를 함께 보면\n\(recommendation?.name ?? "가까운 바다")이 가장 적합해요.").font(.title2.bold())
-                Text("내 위치에서 가까운 바다 \(beaches.count)곳").font(.headline)
+                Text("Based on current conditions and distance,\n\(recommendation?.name ?? "a nearby beach") is the best choice.").font(.title2.bold())
+                Text("\(beaches.count) beaches near you").font(.headline)
                 ForEach(beaches) { beach in
                     HStack(spacing: 14) {
                         Image(systemName: beach.safety.symbol).foregroundStyle(.white).frame(width: 42, height: 42).background(beach.safety.color, in: Circle())
                         VStack(alignment: .leading, spacing: 5) {
                             Text(beach.name).font(.headline)
-                            Text("출몰 \(beach.sightings)건 · 해류 \(String(format: "%.1fm/s", beach.current)) · 수온 \(String(format: "%.1f°C", beach.temperature))")
+                            Text("\(beach.sightings) sightings · Current \(String(format: "%.1fm/s", beach.current)) · Water \(String(format: "%.1f°C", beach.temperature))")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -311,7 +311,7 @@ private struct BeachComparisonView: View {
                     .padding(14).background(.gray.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
                 }
             }.padding()
-        }.navigationTitle("가까운 바다 비교").navigationBarTitleDisplayMode(.inline)
+        }.navigationTitle("Compare Nearby Beaches").navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -321,10 +321,10 @@ private struct JellyfishReportView: View {
     @State private var submitted = false
     var body: some View {
         Form {
-            Section { ContentUnavailableView("사진을 추가해 주세요", systemImage: "camera.viewfinder", description: Text("해파리 종류와 제보 신뢰도를 확인하는 데 도움이 돼요.")); Button("사진 선택", systemImage: "photo.on.rectangle") {} }
-            Section("발견 정보") { LabeledContent("위치", value: "현재 위치 근처"); DatePicker("발견 시각", selection: .constant(.now)); Stepper("발견 수 \(Int(count))마리", value: $count, in: 1...100); TextField("크기, 색상, 주변 상황", text: $note, axis: .vertical) }
-            Section { Button("제보 보내기", systemImage: "paperplane.fill") { submitted = true }.frame(maxWidth: .infinity).buttonStyle(.borderedProminent) } footer: { Text("사용자 제보는 공식 관측과 구분해서 표시됩니다.") }
-        }.navigationTitle("해파리 제보").alert("제보가 임시 저장됐어요", isPresented: $submitted) { Button("확인") {} } message: { Text("프로토타입이라 서버에는 전송되지 않습니다.") }
+            Section { ContentUnavailableView("Add a Photo", systemImage: "camera.viewfinder", description: Text("A photo helps identify the species and verify the report.")); Button("Choose Photo", systemImage: "photo.on.rectangle") {} }
+            Section("Sighting Details") { LabeledContent("Location", value: "Near current location"); DatePicker("Time spotted", selection: .constant(.now)); Stepper("Count: \(Int(count))", value: $count, in: 1...100); TextField("Size, color, and surroundings", text: $note, axis: .vertical) }
+            Section { Button("Submit Report", systemImage: "paperplane.fill") { submitted = true }.frame(maxWidth: .infinity).buttonStyle(.borderedProminent) } footer: { Text("Community reports are shown separately from official observations.") }
+        }.navigationTitle("Report a Jellyfish").alert("Report saved temporarily", isPresented: $submitted) { Button("OK") {} } message: { Text("This prototype does not send data to a server.") }
     }
 }
 
@@ -333,13 +333,13 @@ private struct FavoritesView: View {
     @State private var notifications = true
     var body: some View {
         List {
-            Section("관심 바다") {
+            Section("Saved Beaches") {
                 ForEach(Beach.samples.filter { favorites.contains($0.id) }) { beach in BeachRow(beach: beach) }
-                if favorites.isEmpty { ContentUnavailableView("관심 바다가 없어요", systemImage: "heart", description: Text("지도에서 자주 가는 바다를 저장해 보세요.")) }
+                if favorites.isEmpty { ContentUnavailableView("No Saved Beaches", systemImage: "heart", description: Text("Save your favorite beaches from the map.")) }
             }
-            Section("알림") { Toggle("위험 단계가 바뀌면 알림", isOn: $notifications); Toggle("신규 해파리 관측", isOn: $notifications); Toggle("공식 입수 통제", isOn: $notifications) }
-            Section("안전 가이드") { Label("해파리를 발견했을 때", systemImage: "eye.trianglebadge.exclamationmark"); Label("해파리에 쏘였을 때", systemImage: "cross.case.fill"); Label("공식 특보와 현장 안내", systemImage: "megaphone.fill") }
-        }.navigationTitle("관심과 안전")
+            Section("Notifications") { Toggle("Risk level changes", isOn: $notifications); Toggle("New jellyfish sightings", isOn: $notifications); Toggle("Official swimming restrictions", isOn: $notifications) }
+            Section("Safety Guide") { Label("When you spot a jellyfish", systemImage: "eye.trianglebadge.exclamationmark"); Label("If you are stung", systemImage: "cross.case.fill"); Label("Official alerts and on-site guidance", systemImage: "megaphone.fill") }
+        }.navigationTitle("Saved & Safety")
     }
 }
 
