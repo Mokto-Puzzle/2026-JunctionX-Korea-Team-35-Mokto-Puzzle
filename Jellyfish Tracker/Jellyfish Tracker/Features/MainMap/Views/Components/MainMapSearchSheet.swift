@@ -34,52 +34,37 @@ struct MainMapSearchSheet: View {
             .shadow(color: .black.opacity(0.12), radius: 25, y: -4)
             .contentShape(.rect)
             .gesture(sheetDragGesture)
-            .animation(.snappy, value: resultSheetExpanded)
+            .animation(.interactiveSpring(response: 0.34, dampingFraction: 0.88), value: resultSheetExpanded)
     }
 
-    @ViewBuilder
     private var sheetContent: some View {
-        if isCollapsedSearchOnly {
-            collapsedSearchContent
-        } else {
-            expandedSearchContent
-        }
-    }
-
-    private var collapsedSearchContent: some View {
-        ZStack(alignment: .bottom) {
+        VStack(spacing: 0) {
             sheetGrabber
-                .frame(maxHeight: .infinity, alignment: .top)
                 .padding(.top, 7)
+
+            Spacer()
+                .frame(height: searchFieldTopGap)
 
             searchField
                 .padding(.horizontal, 20)
-                .padding(.bottom, collapsedSearchFieldBottomPadding)
-        }
-    }
-
-    private var expandedSearchContent: some View {
-        VStack(spacing: 10) {
-            sheetGrabber
-                .padding(.bottom, 6)
-
-            searchField
 
             if let selectedBeach {
                 BeachResultSummary(content: summaryForBeach(selectedBeach))
-                    .padding(.top, 10)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if searchExpanded {
                 searchResults
+                    .padding(.horizontal, 20)
+                    .padding(.top, 14)
             }
 
             if resultSheetExpanded {
                 Spacer(minLength: 0)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 7)
         .padding(.bottom, 16)
+        .clipped()
     }
 
     private var sheetGrabber: some View {
@@ -195,12 +180,9 @@ struct MainMapSearchSheet: View {
         selectedBeach == nil && !searchExpanded && !resultSheetExpanded
     }
 
-    private var collapsedSearchFieldBottomPadding: CGFloat {
-        collapsedSearchFieldBottomFromScreen
-    }
-
     private var collapsedSheetVisualHeight: CGFloat { 126 }
-    private var collapsedSearchFieldBottomFromScreen: CGFloat { 41 }
+    private var searchFieldTopFromSheet: CGFloat { 41 }
+    private var searchFieldTopGap: CGFloat { searchFieldTopFromSheet - 7 - 5 }
     private var expandedSheetHeight: CGFloat { 550 + bottomInset }
 }
 
