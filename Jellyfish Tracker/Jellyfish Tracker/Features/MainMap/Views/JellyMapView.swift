@@ -13,6 +13,8 @@ struct JellyMapView: View {
     ))
     @State private var showComparison = false
     @State private var showLayerMenu = false
+    @State private var searchSheetPresented = true
+    @State private var searchSheetDetent: PresentationDetent = .height(126)
     @State private var searchExpanded = false
     @State private var resultSheetExpanded = false
     @State private var visualizeTemperature = false
@@ -69,10 +71,35 @@ struct JellyMapView: View {
             withAnimation(.snappy) {
                 searchExpanded = focused && model.selectedBeach == nil
                 resultSheetExpanded = focused || resultSheetExpanded
+                if focused {
+                    searchSheetDetent = Self.expandedSearchDetent
+                }
+            }
+        }
+        .onChange(of: searchSheetDetent) { _, detent in
+            withAnimation(.snappy) {
+                resultSheetExpanded = detent != Self.collapsedSearchDetent
+                if detent == Self.collapsedSearchDetent {
+                    searchFocused = false
+                    searchExpanded = false
+                }
             }
         }
         .fullScreenCover(isPresented: $showComparison) {
             NearbyComparisonView(model: model, userCoordinate: location.coordinate)
+        }
+        .sheet(isPresented: $searchSheetPresented) {
+            systemSearchSheet
+                .presentationDetents(
+                    [Self.collapsedSearchDetent, Self.resultSearchDetent, Self.expandedSearchDetent],
+                    selection: $searchSheetDetent
+                )
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(38)
+                .presentationBackground(.clear)
+                .presentationBackgroundInteraction(.enabled(upThrough: Self.collapsedSearchDetent))
+                .presentationContentInteraction(.resizes)
+                .interactiveDismissDisabled()
         }
         .tint(Color.jellyMint)
         .preferredColorScheme(.light)
@@ -191,37 +218,36 @@ struct JellyMapView: View {
     }
 
     private func bottomControls(bottomInset: CGFloat) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 0) {
             if !resultSheetExpanded {
                 MainMapFloatingControls(onNearMe: resetNearby, onCompare: { showComparison = true })
+                    .padding(.bottom, Self.collapsedSheetHeight + 12)
             }
-            MainMapSearchSheet(
-                searchText: $model.searchText,
-                searchFocused: $searchFocused,
-                isSearchFocused: searchFocused,
-                bottomInset: bottomInset,
-                selectedBeach: sheetBeach,
-                searchExpanded: searchExpanded,
-                resultSheetExpanded: $resultSheetExpanded,
-                filteredBeaches: model.filteredBeaches,
-                riskForBeach: { model.risk(for: $0) },
-                markedRiskForBeach: { model.markedRisk(for: $0) },
-                distanceTextForBeach: { beach in
-                    model.annotated(
-                        String(format: "%.1f km", model.distance(from: location.coordinate, to: beach.coordinate)),
-                        for: beach,
-                        fields: .location
-                    )
-                },
-                summaryForBeach: summaryContent(for:),
-                onSubmit: { selectSearchResult(model.filteredBeaches.first) },
-                onClear: clearSearch,
-                onSelectBeach: selectSearchResult(_:),
-                onDragExpansionChange: { expanded in
-                    if !expanded { searchFocused = false }
-                }
-            )
         }
+    }
+
+    private var systemSearchSheet: some View {
+        MainMapSystemSearchSheet(
+            searchText: $model.searchText,
+            searchFocused: $searchFocused,
+            isSearchFocused: searchFocused,
+            selectedBeach: sheetBeach,
+            searchExpanded: searchExpanded,
+            filteredBeaches: model.filteredBeaches,
+            riskForBeach: { model.risk(for: $0) },
+            markedRiskForBeach: { model.markedRisk(for: $0) },
+            distanceTextForBeach: { beach in
+                model.annotated(
+                    String(format: "%.1f km", model.distance(from: location.coordinate, to: beach.coordinate)),
+                    for: beach,
+                    fields: .location
+                )
+            },
+            summaryForBeach: summaryContent(for:),
+            onSubmit: { selectSearchResult(model.filteredBeaches.first) },
+            onClear: clearSearch,
+            onSelectBeach: selectSearchResult(_:)
+        )
     }
 
     private func resetNearby() {
@@ -230,6 +256,7 @@ struct JellyMapView: View {
         resultSheetExpanded = false
         searchExpanded = false
         searchFocused = false
+        searchSheetDetent = Self.collapsedSearchDetent
         model.focusNearby(location.coordinate)
         mapPosition = model.position
     }
@@ -239,6 +266,7 @@ struct JellyMapView: View {
         model.selectedBeach = nil
         resultSheetExpanded = false
         searchExpanded = false
+        searchSheetDetent = Self.collapsedSearchDetent
     }
 
     private func summaryContent(for beach: Beach) -> BeachResultSummaryContent {
@@ -334,7 +362,8 @@ struct JellyMapView: View {
         model.searchText = beach.searchDisplayName
         searchFocused = false
         searchExpanded = false
-        resultSheetExpanded = false
+        resultSheetExpanded = true
+        searchSheetDetent = Self.resultSearchDetent
     }
 
     private func focus(on beach: Beach) {
@@ -342,6 +371,10 @@ struct JellyMapView: View {
         mapPosition = model.position
     }
 
+    private static let collapsedSheetHeight: CGFloat = 126
+    private static let collapsedSearchDetent = PresentationDetent.height(collapsedSheetHeight)
+    private static let resultSearchDetent = PresentationDetent.height(304)
+    private static let expandedSearchDetent = PresentationDetent.height(550)
 }
 
 #Preview("Jelly Map") {
