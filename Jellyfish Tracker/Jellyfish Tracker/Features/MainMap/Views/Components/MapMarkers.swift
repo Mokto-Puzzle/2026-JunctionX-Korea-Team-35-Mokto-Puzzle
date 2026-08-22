@@ -32,13 +32,10 @@ struct BeachPin: View {
             }
             .frame(width: 91, height: 91)
             .background(showsRadius ? radiusFill : .clear, in: .circle)
-            .overlay {
-                if selected {
-                    Circle().stroke(AppColor.risk(risk).opacity(0.55), lineWidth: 2)
-                }
-            }
         }
         .frame(width: 91)
+        .scaleEffect(selected ? 1.12 : 1)
+        .animation(.spring(response: 0.28, dampingFraction: 0.72), value: selected)
     }
 
     private var shortName: String {

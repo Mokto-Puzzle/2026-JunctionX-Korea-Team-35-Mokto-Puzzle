@@ -57,6 +57,7 @@ struct JellyMapView: View {
                         .padding(.bottom, sheetBeach == nil ? 112 : 220)
                 }
             }
+            .animation(.snappy, value: showLayerMenu)
         }
         .task {
             await model.load()
@@ -99,12 +100,12 @@ struct JellyMapView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $showComparison) {
+        .fullScreenCover(isPresented: $showComparison, onDismiss: resetAfterComparison) {
             NearbyComparisonView(model: model, userCoordinate: location.coordinate)
         }
         .onChange(of: showComparison) { _, isPresented in
             guard !isPresented else { return }
-            collapseSearchSheet(clearSelection: true)
+            resetAfterComparison()
         }
         .sheet(isPresented: $searchSheetPresented) {
             systemSearchSheet
@@ -116,7 +117,7 @@ struct JellyMapView: View {
                 )
                 .presentationDragIndicator(.hidden)
                 .presentationCornerRadius(38)
-                .presentationBackground(AppColor.Fill.searchSheetSurface)
+                .presentationBackground(.clear)
                 .presentationBackgroundInteraction(.enabled(upThrough: Self.collapsedSearchDetent))
                 .presentationContentInteraction(.resizes)
                 .interactiveDismissDisabled()
@@ -298,6 +299,16 @@ struct JellyMapView: View {
     private func presentComparison() {
         collapseSearchSheet(clearSelection: true)
         showComparison = true
+    }
+
+    private func resetAfterComparison() {
+        collapseSearchSheet(clearSelection: true)
+        DispatchQueue.main.async {
+            collapseSearchSheet(clearSelection: true)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            collapseSearchSheet(clearSelection: true)
+        }
     }
 
     private func collapseSearchSheet(clearSelection: Bool) {
