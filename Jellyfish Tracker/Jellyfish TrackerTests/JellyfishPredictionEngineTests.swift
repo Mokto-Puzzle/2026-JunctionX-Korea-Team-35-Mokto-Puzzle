@@ -341,6 +341,31 @@ final class JellyfishPredictionEngineTests: XCTestCase {
         }
     }
 
+    func testUnsupportedForecastHourDoesNotReturnParticlesOrImpact() throws {
+        let track = try XCTUnwrap(MockOceanDataProvider.modeledTracks.first)
+        let unsupportedHour = track.supportedFutureHorizon + 1
+
+        XCTAssertTrue(track.particles(at: unsupportedHour).isEmpty)
+        XCTAssertNil(track.entryFraction(
+            near: track.coordinate(at: 0),
+            radius: 5_000,
+            upTo: unsupportedHour
+        ))
+    }
+
+    func testOfficialRegionalTrackDoesNotInventHistoricalPath() {
+        let track = JellyfishTrack(
+            id: "official-history",
+            species: "Moon jellyfish",
+            observedAt: "NIFS",
+            originKind: .officialRegionEstimate,
+            checkpoints: [(0, .init(latitude: 36.0, longitude: 129.5))],
+            provenance: .live(source: "NIFS", quality: .officialRegional)
+        )
+
+        XCTAssertTrue(track.historyPath(at: -12).isEmpty)
+    }
+
     func testParticleCannotTunnelAcrossNarrowLandWhenDestinationIsWater() throws {
         struct NarrowLandStrip: CoastlineMask {
             func isWater(_ coordinate: CLLocationCoordinate2D) -> Bool {

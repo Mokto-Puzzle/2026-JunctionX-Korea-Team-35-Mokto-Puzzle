@@ -224,6 +224,8 @@ struct Beach: Identifiable, Hashable, Codable {
 }
 
 struct JellyfishTrack: Identifiable, Hashable {
+    static let minimumSupportedParticleCoverage = 0.75
+
     enum OriginKind: String, Hashable {
         case mock
         case officialPoint
@@ -268,6 +270,31 @@ struct JellyfishTrack: Identifiable, Hashable {
 
     static func == (lhs: JellyfishTrack, rhs: JellyfishTrack) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
+
+    var supportedFutureHorizon: Double {
+        guard !particleSnapshots.isEmpty else {
+            return max(checkpoints.filter { $0.hour >= 0 }.map(\.hour).max() ?? 0, 0)
+        }
+        let referenceIDs = referenceParticleIDs
+        guard !referenceIDs.isEmpty else { return 0 }
+        return max(
+            particleSnapshots.filter { hour, particles in
+                hour >= 0
+                    && activeCoverage(in: particles, relativeTo: referenceIDs)
+                        >= Self.minimumSupportedParticleCoverage
+            }.map(\.key).max() ?? 0,
+            0
+        )
+    }
+
+    func activeParticleCoverage(at hour: Double) -> Double? {
+        guard hour >= 0 else { return nil }
+        let referenceIDs = referenceParticleIDs
+        guard !referenceIDs.isEmpty else { return nil }
+        let frame = rawParticles(at: hour)
+        guard !frame.isEmpty else { return nil }
+        return activeCoverage(in: frame, relativeTo: referenceIDs)
+    }
 
     func coordinate(at hour: Double) -> CLLocationCoordinate2D {
         // Particle forecasts begin at the observation time. Historical slider values
@@ -318,7 +345,9 @@ struct JellyfishTrack: Identifiable, Hashable {
         if checkpoints.contains(where: { $0.hour < 0 }) {
             return checkpoints.filter { $0.hour <= end }.map(\.coordinate)
         }
-        guard end < 0 else { return [] }
+        // Official regional reports do not contain an exact historical route.
+        // Only explicitly labelled demo tracks may synthesize a preview backcast.
+        guard originKind == .mock, end < 0 else { return [] }
         var path: [CLLocationCoordinate2D] = []
         var sampleHour = -24.0
         while sampleHour <= end + 0.000_1 {
@@ -332,15 +361,17 @@ struct JellyfishTrack: Identifiable, Hashable {
     }
 
     func forecastPath(at hour: Double) -> [CLLocationCoordinate2D] {
-        guard hour > 0, let current = checkpoints.first(where: { $0.hour == 0 })?.coordinate else { return [] }
+        guard hour > 0, supportedFutureHorizon > 0,
+              let current = checkpoints.first(where: { $0.hour == 0 })?.coordinate else { return [] }
+        let supportedEnd = min(hour, supportedFutureHorizon)
         var path = [current]
-        var sampleHour = min(0.5, hour)
-        while sampleHour <= hour + 0.000_1 {
-            let candidate = coordinate(at: min(sampleHour, hour))
+        var sampleHour = min(0.5, supportedEnd)
+        while sampleHour <= supportedEnd + 0.000_1 {
+            let candidate = coordinate(at: min(sampleHour, supportedEnd))
             guard Self.segmentIsWater(from: path[path.count - 1], to: candidate) else { break }
             path.append(candidate)
-            if sampleHour == hour { break }
-            sampleHour = min(sampleHour + 0.5, hour)
+            if sampleHour == supportedEnd { break }
+            sampleHour = min(sampleHour + 0.5, supportedEnd)
         }
         return path
     }
@@ -397,9 +428,15 @@ struct JellyfishTrack: Identifiable, Hashable {
     }
 
     func particles(at hour: Double) -> [JellyfishParticleSnapshot] {
+        guard hour < 0 || hour <= supportedFutureHorizon + 0.000_001 else { return [] }
+        return rawParticles(at: hour)
+    }
+
+    private func rawParticles(at hour: Double) -> [JellyfishParticleSnapshot] {
         if let exact = particleSnapshots[hour] { return exact }
         let hours = particleSnapshots.keys.sorted()
         guard let first = hours.first, let last = hours.last else { return [] }
+        guard hour >= first, hour <= last else { return [] }
         let lowerHour = hours.last(where: { $0 <= hour }) ?? first
         let upperHour = hours.first(where: { $0 >= hour }) ?? last
         guard let lower = particleSnapshots[lowerHour] else { return [] }
@@ -433,7 +470,7 @@ struct JellyfishTrack: Identifiable, Hashable {
     }
 
     func particleHistory(upTo hour: Double) -> [[JellyfishParticleSnapshot]] {
-        guard hour >= 0 else { return [] }
+        guard hour >= 0, hour <= supportedFutureHorizon + 0.000_001 else { return [] }
         let completed = particleSnapshots.keys.filter { $0 <= hour }.sorted().compactMap { particleSnapshots[$0] }
         guard !particleSnapshots.keys.contains(hour) else { return completed }
         let interpolated = particles(at: hour)
@@ -445,20 +482,54 @@ struct JellyfishTrack: Identifiable, Hashable {
         radius: CLLocationDistance,
         upTo hour: Double
     ) -> Double? {
+        guard hour >= 0, radius > 0 else { return nil }
         let frames = particleHistory(upTo: hour)
-        guard let particleCount = frames.first?.count, particleCount > 0 else { return nil }
+        let referenceIDs = referenceParticleIDs
+        guard !frames.isEmpty, !referenceIDs.isEmpty,
+              let coverage = activeParticleCoverage(at: hour),
+              coverage >= Self.minimumSupportedParticleCoverage else { return nil }
+        let selectedFrame = rawParticles(at: hour)
+        let activeIDs = activeParticleIDs(in: selectedFrame, relativeTo: referenceIDs)
+        guard !activeIDs.isEmpty else { return nil }
         let target = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-        var entered = Array(repeating: false, count: particleCount)
-        for frame in frames where frame.count == particleCount {
-            for index in frame.indices where !entered[index] {
-                let point = frame[index].coordinate
-                entered[index] = target.distance(from: CLLocation(
+        var entered: Set<Int> = []
+        for frame in frames {
+            for (index, particle) in frame.enumerated() {
+                let id = particle.id >= 0 ? particle.id : index
+                guard activeIDs.contains(id), !entered.contains(id), !particle.isInactive else { continue }
+                let point = particle.coordinate
+                if target.distance(from: CLLocation(
                     latitude: point.latitude,
                     longitude: point.longitude
-                )) <= radius
+                )) <= radius { entered.insert(id) }
             }
         }
-        return Double(entered.filter { $0 }.count) / Double(particleCount)
+        return Double(entered.count) / Double(activeIDs.count)
+    }
+
+    private var referenceParticleIDs: Set<Int> {
+        guard let referenceHour = particleSnapshots.keys.filter({ $0 >= 0 }).min(),
+              let particles = particleSnapshots[referenceHour] else { return [] }
+        return Set(particles.enumerated().map { index, particle in
+            particle.id >= 0 ? particle.id : index
+        })
+    }
+
+    private func activeParticleIDs(
+        in particles: [JellyfishParticleSnapshot], relativeTo referenceIDs: Set<Int>
+    ) -> Set<Int> {
+        Set(particles.enumerated().compactMap { index, particle in
+            let id = particle.id >= 0 ? particle.id : index
+            return !particle.isInactive && referenceIDs.contains(id) ? id : nil
+        })
+    }
+
+    private func activeCoverage(
+        in particles: [JellyfishParticleSnapshot], relativeTo referenceIDs: Set<Int>
+    ) -> Double {
+        guard !referenceIDs.isEmpty else { return 0 }
+        return Double(activeParticleIDs(in: particles, relativeTo: referenceIDs).count)
+            / Double(referenceIDs.count)
     }
 }
 

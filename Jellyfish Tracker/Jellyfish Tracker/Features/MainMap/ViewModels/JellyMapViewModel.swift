@@ -195,29 +195,37 @@ final class JellyMapViewModel: ObservableObject {
     }
 
     func risk(for beach: Beach) -> RiskLevel {
-        let impact = impactProbability(for: beach)
+        guard let impact = supportedImpactProbability(for: beach) else { return beach.baseRisk }
         if impact >= 0.55 { return .later }
         if impact >= 0.18 { return max(beach.baseRisk, .caution) }
         return beach.baseRisk
     }
 
     func impactProbability(for beach: Beach) -> Double {
-        guard forecastHour >= 0, !tracks.isEmpty else { return 0 }
+        supportedImpactProbability(for: beach) ?? 0
+    }
+
+    private func supportedImpactProbability(for beach: Beach) -> Double? {
+        guard forecastHour >= 0, !tracks.isEmpty else { return nil }
         let influenceRadius = 5_000.0
         var noImpactProbability = 1.0
+        var contributingTrackCount = 0
         for track in tracks {
             guard let trackProbability = track.entryFraction(
                 near: beach.coordinate,
                 radius: influenceRadius,
                 upTo: forecastHour
             ) else { continue }
+            contributingTrackCount += 1
             noImpactProbability *= 1 - trackProbability
         }
+        guard contributingTrackCount > 0 else { return nil }
         return min(max(1 - noImpactProbability, 0), 1)
     }
 
     func markedImpact(for beach: Beach) -> String {
-        let value = "\(Int((impactProbability(for: beach) * 100).rounded()))%"
+        guard let probability = supportedImpactProbability(for: beach) else { return "Check later" }
+        let value = "\(Int((probability * 100).rounded()))%"
         switch predictionQuality {
         case .mock: return value
         case .missing: return "Check later"
@@ -235,7 +243,8 @@ final class JellyMapViewModel: ObservableObject {
         let riskPenalty = Double(risk(for: beach).rawValue) * 100
         let sightingPenalty = Double(beach.recentSightingsCount) * 14
         let currentPenalty = beach.marine.currentSpeed * 18
-        let modeledImpactPenalty = impactProbability(for: beach) * 160
+        // Unknown model coverage must not rank as a confirmed zero-impact beach.
+        let modeledImpactPenalty = supportedImpactProbability(for: beach).map { $0 * 160 } ?? 80
         let distancePenalty = min(distance(from: origin, to: beach.coordinate), 80) * 0.25
         return riskPenalty + sightingPenalty + currentPenalty + modeledImpactPenalty + distancePenalty
     }
@@ -252,7 +261,10 @@ final class JellyMapViewModel: ObservableObject {
     }
 
     func recommendationReason(for beach: Beach, from origin: CLLocationCoordinate2D) -> String {
-        let impactPercent = Int((impactProbability(for: beach) * 100).rounded())
+        guard let probability = supportedImpactProbability(for: beach) else {
+            return "Recommended from available beach conditions."
+        }
+        let impactPercent = Int((probability * 100).rounded())
         if risk(for: beach) == .good && !beach.recentJellyfish {
             return "Lowest modeled jellyfish impact nearby (\(impactPercent)% at selected time)."
         }
