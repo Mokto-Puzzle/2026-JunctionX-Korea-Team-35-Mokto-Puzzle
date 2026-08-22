@@ -1,0 +1,6 @@
+{
+  "images" : [
+    { "filename" : "icon-chevron-right.png", "idiom" : "universal", "template-rendering-intent" : "template" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}

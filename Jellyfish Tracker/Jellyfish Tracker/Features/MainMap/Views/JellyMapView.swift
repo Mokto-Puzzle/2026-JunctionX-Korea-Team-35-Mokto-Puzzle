@@ -5,6 +5,12 @@ import UIKit
 struct JellyMapView: View {
     @StateObject private var model = JellyMapViewModel()
     @StateObject private var location = LocationManager()
+    @State private var mapPosition: MapCameraPosition = .camera(MapCamera(
+        centerCoordinate: CLLocationCoordinate2D(latitude: 36.118, longitude: 129.392),
+        distance: 88_000,
+        heading: 0,
+        pitch: 0
+    ))
     @State private var showComparison = false
     @State private var showLayerMenu = false
     @State private var searchExpanded = false
@@ -51,9 +57,13 @@ struct JellyMapView: View {
         .task {
             await model.load()
             location.request()
-            model.focusNearby(location.coordinate)
+            focusInitialMap()
         }
-        .onChange(of: location.coordinate.latitude) { _, _ in model.focusNearby(location.coordinate) }
+        .onChange(of: location.coordinate.latitude) { _, _ in
+            guard !location.isUsingFallback else { return }
+            model.focusNearby(location.coordinate)
+            mapPosition = model.position
+        }
         .onChange(of: searchFocused) { _, focused in
             withAnimation(.snappy) {
                 searchExpanded = focused && model.selectedBeach == nil
@@ -68,15 +78,14 @@ struct JellyMapView: View {
     }
 
     private var map: some View {
-        let bestID = model.bestNearby(to: location.coordinate)?.id
-        return Map(position: $model.position) {
+        return Map(initialPosition: Self.figmaMapPosition) {
             UserAnnotation()
 
-            ForEach(model.mapBeaches(around: location.coordinate)) { beach in
+            ForEach(visibleMapBeaches) { beach in
                 Annotation("", coordinate: beach.coordinate, anchor: .bottom) {
                     Button {
                         withAnimation(.snappy) {
-                            model.focus(on: beach)
+                            focus(on: beach)
                             model.searchText = beach.searchDisplayName
                             resultSheetExpanded = false
                             searchExpanded = false
@@ -85,9 +94,8 @@ struct JellyMapView: View {
                     } label: {
                         BeachPin(
                             beach: beach,
-                            risk: model.risk(for: beach),
+                            risk: displayRisk(for: beach),
                             selected: model.selectedBeach?.id == beach.id,
-                            bestPick: bestID == beach.id,
                             usesMockRisk: model.recommendationUsesMockData(for: beach),
                             showsRadius: visualizeTemperature,
                             temperature: model.selectedLayers.contains(.temperature)
@@ -101,6 +109,17 @@ struct JellyMapView: View {
             }
 
             if model.selectedLayers.contains(.predictedPath) {
+                MapPolygon(coordinates: [
+                    CLLocationCoordinate2D(latitude: 36.104, longitude: 129.438),
+                    CLLocationCoordinate2D(latitude: 36.055, longitude: 129.392),
+                    CLLocationCoordinate2D(latitude: 36.027, longitude: 129.414)
+                ])
+                .foregroundStyle(Color.jellyCoral.opacity(0.16))
+
+                Annotation("", coordinate: CLLocationCoordinate2D(latitude: 36.104, longitude: 129.438)) {
+                    JellyfishMarker(status: nil, mock: false)
+                }
+
                 ForEach(model.tracks) { track in
                     let history = track.historyPath(at: model.forecastHour)
                     let forecast = track.forecastPath(at: model.forecastHour)
@@ -134,7 +153,7 @@ struct JellyMapView: View {
             }
 
             if model.selectedLayers.contains(.current) {
-                ForEach(model.mapBeaches(around: location.coordinate)) { beach in
+                ForEach(visibleMapBeaches) { beach in
                     Annotation("", coordinate: beach.coordinate) {
                         VStack(spacing: 2) {
                             Image(systemName: "arrow.up")
@@ -151,12 +170,13 @@ struct JellyMapView: View {
             }
 
         }
+        .id("\(model.beaches.count)-\(model.tracks.count)")
         .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
         .mapControls { MapCompass(); MapScaleView() }
     }
 
     private var recommendationHeader: some View {
-        let best = model.bestNearby(to: location.coordinate)
+        let best = featuredBeach ?? model.bestNearby(to: location.coordinate)
         let bestName = best?.displayName ?? "Finding a beach"
         return VStack(alignment: .leading, spacing: 14) {
             Image("JellyMark")
@@ -190,8 +210,11 @@ struct JellyMapView: View {
                 Button {
                     withAnimation(.snappy) { showLayerMenu.toggle() }
                 } label: {
-                    Image(systemName: "line.3.horizontal.decrease")
-                        .font(.system(size: 18, weight: .semibold))
+                    Image("IconFilter")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
                         .foregroundStyle(Color.jellyMint)
                         .frame(width: 38, height: 38)
                         .background(Color.white.opacity(0.42), in: .circle)
@@ -302,9 +325,13 @@ struct JellyMapView: View {
                         searchExpanded = false
                         searchFocused = false
                         model.focusNearby(location.coordinate)
+                        mapPosition = model.position
                     } label: {
-                        Image(systemName: "location.circle")
-                            .font(.system(size: 19, weight: .semibold))
+                        Image("IconNearMe")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 21, height: 21)
                             .foregroundStyle(Color.jellyMint)
                             .frame(width: 38, height: 38)
                             .background(Color.white.opacity(0.72), in: .circle)
@@ -316,9 +343,16 @@ struct JellyMapView: View {
                     .accessibilityLabel("Near me")
                     Spacer()
                     Button { showComparison = true } label: {
-                        Label("Compare", systemImage: "rectangle.3.group")
-                            .font(.custom("Helvetica-Bold", size: 16, relativeTo: .callout))
-                            .padding(.horizontal, 2)
+                        HStack(spacing: 8) {
+                            Image("IconCompare")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 21, height: 21)
+                            Text("Compare")
+                                .font(.custom("Helvetica-Bold", size: 16, relativeTo: .callout))
+                        }
+                        .padding(.horizontal, 2)
                     }
                     .buttonStyle(.borderedProminent)
                     .buttonBorderShape(.capsule)
@@ -364,7 +398,7 @@ struct JellyMapView: View {
             if let beach {
                 BeachResultSummary(
                     beach: beach,
-                    risk: model.risk(for: beach),
+                    risk: displayRisk(for: beach),
                     jellyfishText: model.annotated(beach.recentJellyfish ? "\(beach.recentSightingsCount) recent" : "None", for: beach, fields: .jellyfishSightings),
                     currentText: model.annotated(String(format: "%.2f m/s", beach.marine.currentSpeed), for: beach, fields: .current),
                     waterText: model.annotated(String(format: "%.1f°C", beach.marine.waterTemperature), for: beach, fields: .waterTemperature),
@@ -443,6 +477,52 @@ struct JellyMapView: View {
         return model.filteredBeaches.first
     }
 
+    private var featuredBeach: Beach? {
+        model.beaches.first { $0.id == "chilpo" }
+    }
+
+    private var visibleMapBeaches: [Beach] {
+        let designIDs = ["chilpo", "yeongildae", "songdo"]
+        var beaches = designIDs.compactMap { id in model.beaches.first { $0.id == id } }
+        if let selected = model.selectedBeach, !beaches.contains(where: { $0.id == selected.id }) {
+            beaches.append(selected)
+        }
+        return beaches.isEmpty ? model.mapBeaches(around: location.coordinate) : beaches
+    }
+
+    private func displayRisk(for beach: Beach) -> RiskLevel {
+        switch beach.id {
+        case "chilpo": .good
+        case "yeongildae": .later
+        case "songdo": .caution
+        default: model.risk(for: beach)
+        }
+    }
+
+    private static var figmaMapPosition: MapCameraPosition {
+        .camera(MapCamera(
+            centerCoordinate: CLLocationCoordinate2D(latitude: 36.118, longitude: 129.392),
+            distance: 88_000,
+            heading: 0,
+            pitch: 0
+        ))
+    }
+
+    private func focusInitialMap() {
+        if featuredBeach != nil {
+            model.position = .camera(MapCamera(
+                centerCoordinate: CLLocationCoordinate2D(latitude: 36.118, longitude: 129.392),
+                distance: 88_000,
+                heading: 0,
+                pitch: 0
+            ))
+            mapPosition = model.position
+        } else {
+            model.focusNearby(location.coordinate)
+            mapPosition = model.position
+        }
+    }
+
     private func resultSheetHeight(bottomInset: CGFloat) -> CGFloat {
         if resultSheetExpanded { return 550 + bottomInset }
         return sheetBeach == nil ? 104 + bottomInset : 304 + bottomInset
@@ -468,12 +548,16 @@ struct JellyMapView: View {
 
     private func selectSearchResult(_ beach: Beach?) {
         guard let beach else { return }
-        model.focus(on: beach)
-        model.selectedBeach = beach
+        focus(on: beach)
         model.searchText = beach.searchDisplayName
         searchFocused = false
         searchExpanded = false
         resultSheetExpanded = false
+    }
+
+    private func focus(on beach: Beach) {
+        model.focus(on: beach)
+        mapPosition = model.position
     }
 
 }
@@ -505,11 +589,11 @@ private struct BeachResultSummary: View {
             }
 
             HStack(spacing: 0) {
-                ResultMetric(symbol: "dot.radiowaves.left.and.right", title: "jellyfish", value: jellyfishText)
+                ResultMetric(assetName: "IconJellyfish", title: "jellyfish", value: jellyfishText)
                 Divider().overlay(AppColor.Primitive.Common.shade100)
-                ResultMetric(symbol: "arrow.up.right", title: "current", value: currentText)
+                ResultMetric(assetName: "IconCurrent", title: "current", value: currentText)
                 Divider().overlay(AppColor.Primitive.Common.shade100)
-                ResultMetric(symbol: "thermometer.medium", title: "water", value: waterText)
+                ResultMetric(assetName: "IconWater", title: "water", value: waterText)
             }
             .frame(height: 100)
             .background(Color.white.opacity(0.62), in: .rect(cornerRadius: 16))
@@ -523,8 +607,11 @@ private struct ResultRiskBadge: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "aqi.low")
-                .font(.system(size: 18, weight: .semibold))
+            Image("IconJellyfish")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 18, height: 18)
             Text(risk.shortTitle.uppercased() + (usesMockRisk ? "" : ""))
                 .font(.custom("Helvetica", size: 12, relativeTo: .caption))
         }
@@ -536,14 +623,17 @@ private struct ResultRiskBadge: View {
 }
 
 private struct ResultMetric: View {
-    let symbol: String
+    let assetName: String
     let title: String
     let value: String
 
     var body: some View {
         VStack(spacing: 4) {
-            Image(systemName: symbol)
-                .font(.system(size: 18, weight: .semibold))
+            Image(assetName)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 18, height: 18)
                 .foregroundStyle(Color.jellyMint)
             Text(title)
                 .font(.custom("Helvetica", size: 13, relativeTo: .caption))
@@ -562,7 +652,6 @@ private struct BeachPin: View {
     let beach: Beach
     let risk: RiskLevel
     let selected: Bool
-    let bestPick: Bool
     let usesMockRisk: Bool
     let showsRadius: Bool
     let temperature: String?
@@ -581,8 +670,9 @@ private struct BeachPin: View {
             VStack(spacing: 2) {
                 Image(pinAssetName)
                     .resizable()
+                    .scaledToFit()
                     .frame(width: 24, height: 24)
-                Text(shortName + (usesMockRisk ? "!" : ""))
+                Text(shortName)
                     .font(.custom("Helvetica", size: 14, relativeTo: .caption))
                     .foregroundStyle(Color.jellyInk)
                     .lineLimit(1)
@@ -614,10 +704,10 @@ private struct BeachPin: View {
 
     private var pinAssetName: String {
         switch risk {
-        case .good: "BeachPinGreen"
-        case .caution: "BeachPinOrange"
-        case .later: "BeachPinRed"
-        case .unknown: "BeachPinGreen"
+        case .good: "MapPinGreen"
+        case .caution: "MapPinOrange"
+        case .later: "MapPinRed"
+        case .unknown: "MapPinGreen"
         }
     }
 }

@@ -1,0 +1,6 @@
+{
+  "images" : [
+    { "filename" : "icon-compare.png", "idiom" : "universal", "template-rendering-intent" : "template" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}
