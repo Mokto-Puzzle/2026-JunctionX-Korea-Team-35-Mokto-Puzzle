@@ -101,6 +101,12 @@ enum AppColor {
             static let cautionCard = Primitive.Orange.shade100.opacity(0.45)
             static let highCard = Primitive.Red.shade100.opacity(0.42)
         }
+
+        enum StatusChip {
+            static let safe = Primitive.Green.shade100
+            static let surf = Primitive.Orange.shade100
+            static let fish = Primitive.Red.shade100
+        }
     }
 
     enum Text {
@@ -136,6 +142,12 @@ enum AppColor {
         static let caution = Primitive.Orange.shade500
         static let high = Primitive.Red.shade500
         static let unknown = Primitive.Common.shade500
+    }
+
+    enum Status {
+        static let safe = Primitive.Green.shade700
+        static let surf = Primitive.Orange.shade500
+        static let fish = Primitive.Red.shade500
     }
 
     enum Map {

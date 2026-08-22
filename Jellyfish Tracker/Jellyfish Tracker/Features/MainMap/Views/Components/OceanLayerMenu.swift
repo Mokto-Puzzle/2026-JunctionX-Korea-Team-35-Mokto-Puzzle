@@ -23,12 +23,16 @@ struct OceanLayerMenu: View {
         .background {
             RoundedRectangle(cornerRadius: 30)
                 .fill(.ultraThinMaterial)
-                .overlay(AppColor.Fill.filterPanelSurface)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 30)
+                        .fill(AppColor.Fill.filterPanelSurface)
+                }
         }
         .overlay {
             RoundedRectangle(cornerRadius: 30)
                 .stroke(AppColor.Stroke.light, lineWidth: 1)
         }
+        .clipShape(RoundedRectangle(cornerRadius: 30))
         .shadow(color: AppColor.Shadow.light, radius: 20, y: 8)
     }
 

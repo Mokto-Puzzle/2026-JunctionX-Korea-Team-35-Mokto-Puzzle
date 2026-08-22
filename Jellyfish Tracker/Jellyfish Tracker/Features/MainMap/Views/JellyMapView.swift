@@ -101,6 +101,10 @@ struct JellyMapView: View {
         .fullScreenCover(isPresented: $showComparison) {
             NearbyComparisonView(model: model, userCoordinate: location.coordinate)
         }
+        .onChange(of: showComparison) { _, isPresented in
+            guard !isPresented else { return }
+            collapseSearchSheet(clearSelection: true)
+        }
         .sheet(isPresented: $searchSheetPresented) {
             systemSearchSheet
                 .presentationDetents(
@@ -119,7 +123,7 @@ struct JellyMapView: View {
     }
 
     private var map: some View {
-        return Map(position: $mapPosition, bounds: Self.gyeongbukCameraBounds) {
+        return Map(position: $mapPosition, bounds: Self.gyeongbukCameraBounds, interactionModes: [.pan, .zoom]) {
             UserAnnotation()
 
             ForEach(visibleMapBeaches) { beach in
@@ -128,9 +132,11 @@ struct JellyMapView: View {
                         withAnimation(.snappy) {
                             focus(on: beach)
                             model.searchText = beach.searchDisplayName
-                            resultSheetExpanded = false
                             searchExpanded = false
                             searchFocused = false
+                            resultSheetExpanded = true
+                            searchSheetDetent = Self.resultSearchDetent
+                            showLayerMenu = false
                         }
                     } label: {
                         BeachPin(
@@ -202,7 +208,7 @@ struct JellyMapView: View {
         }
         .id("\(model.beaches.count)-\(model.tracks.count)")
         .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
-        .mapControls { MapCompass(); MapScaleView() }
+        .mapControls { MapScaleView() }
     }
 
     private var recommendationHeader: some View {
@@ -232,9 +238,9 @@ struct JellyMapView: View {
 
     private func bottomControls(bottomInset: CGFloat) -> some View {
         VStack(spacing: 0) {
-            if !resultSheetExpanded {
-                MainMapFloatingControls(onNearMe: resetNearby, onCompare: { showComparison = true })
-                    .padding(.bottom, Self.collapsedSheetHeight + 12)
+            if searchSheetDetent != Self.expandedSearchDetent {
+                MainMapFloatingControls(onNearMe: centerOnUserLocation, onCompare: presentComparison)
+                    .padding(.bottom, floatingControlsBottomPadding)
             }
         }
     }
@@ -246,6 +252,7 @@ struct JellyMapView: View {
             isSearchFocused: searchFocused,
             selectedBeach: sheetBeach,
             searchExpanded: searchExpanded,
+            isDetailExpanded: searchSheetDetent == Self.expandedSearchDetent,
             filteredBeaches: model.filteredBeaches,
             riskForBeach: { model.risk(for: $0) },
             markedRiskForBeach: { model.markedRisk(for: $0) },
@@ -263,23 +270,44 @@ struct JellyMapView: View {
         )
     }
 
-    private func resetNearby() {
-        model.searchText = ""
-        model.selectedBeach = nil
-        resultSheetExpanded = false
-        searchExpanded = false
+    private var floatingControlsBottomPadding: CGFloat {
+        searchSheetDetent == Self.resultSearchDetent
+            ? Self.resultSearchHeight + 20
+            : Self.collapsedSheetHeight + 12
+    }
+
+    private func centerOnUserLocation() {
+        collapseSearchSheet(clearSelection: true)
+        let target = mapCoordinate(for: location.coordinate)
+        let position = MapCameraPosition.camera(MapCamera(
+            centerCoordinate: target,
+            distance: 55_000,
+            heading: 0,
+            pitch: 0
+        ))
+        model.position = position
+        mapPosition = position
+    }
+
+    private func presentComparison() {
+        collapseSearchSheet(clearSelection: true)
+        showComparison = true
+    }
+
+    private func collapseSearchSheet(clearSelection: Bool) {
         searchFocused = false
+        searchExpanded = false
+        resultSheetExpanded = false
         searchSheetDetent = Self.collapsedSearchDetent
-        model.focusNearby(location.coordinate)
-        mapPosition = model.position
+        if clearSelection {
+            model.searchText = ""
+            model.selectedBeach = nil
+            model.focusedBeach = nil
+        }
     }
 
     private func clearSearch() {
-        model.searchText = ""
-        model.selectedBeach = nil
-        resultSheetExpanded = false
-        searchExpanded = false
-        searchSheetDetent = Self.collapsedSearchDetent
+        collapseSearchSheet(clearSelection: true)
     }
 
     private func summaryContent(for beach: Beach) -> BeachResultSummaryContent {
@@ -340,6 +368,13 @@ struct JellyMapView: View {
         }
     }
 
+    private func mapCoordinate(for coordinate: CLLocationCoordinate2D) -> CLLocationCoordinate2D {
+        if !location.isUsingFallback && Self.gyeongbukMapRect.contains(MKMapPoint(coordinate)) {
+            return coordinate
+        }
+        return LocationManager.fallback
+    }
+
     private func errorToast(_ message: String) -> some View {
         HStack {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(AppColor.Icon.warning)
@@ -392,8 +427,10 @@ struct JellyMapView: View {
 
     private static let collapsedSheetHeight: CGFloat = 126
     private static let collapsedSearchDetent = PresentationDetent.height(collapsedSheetHeight)
-    private static let resultSearchDetent = PresentationDetent.height(304)
-    private static let expandedSearchDetent = PresentationDetent.height(550)
+    private static let resultSearchHeight: CGFloat = 304
+    private static let expandedSearchHeight: CGFloat = 550
+    private static let resultSearchDetent = PresentationDetent.height(resultSearchHeight)
+    private static let expandedSearchDetent = PresentationDetent.height(expandedSearchHeight)
     private static let layerMenuTop: CGFloat = 246
     private static let gyeongbukCameraBounds = MapCameraBounds(
         centerCoordinateBounds: gyeongbukMapRect,
