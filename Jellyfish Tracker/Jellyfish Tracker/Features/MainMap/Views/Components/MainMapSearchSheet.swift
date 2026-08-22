@@ -16,10 +16,11 @@ struct MainMapSearchSheet: View {
     let onClear: () -> Void
     let onSelectBeach: (Beach) -> Void
     let onDragExpansionChange: (Bool) -> Void
+    @GestureState private var sheetDragTranslation: CGFloat = 0
 
     var body: some View {
         sheetContent
-            .frame(height: sheetHeight, alignment: .top)
+            .frame(height: interactiveSheetHeight, alignment: .top)
             .background {
                 UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38)
                     .fill(.ultraThinMaterial)
@@ -32,20 +33,8 @@ struct MainMapSearchSheet: View {
             }
             .shadow(color: .black.opacity(0.12), radius: 25, y: -4)
             .contentShape(.rect)
-            .gesture(
-                DragGesture(minimumDistance: 16).onEnded { value in
-                    withAnimation(.snappy) {
-                        if value.translation.height < -36 {
-                            resultSheetExpanded = true
-                            onDragExpansionChange(true)
-                        }
-                        if value.translation.height > 36 {
-                            resultSheetExpanded = false
-                            onDragExpansionChange(false)
-                        }
-                    }
-                }
-            )
+            .gesture(sheetDragGesture)
+            .animation(.snappy, value: resultSheetExpanded)
     }
 
     @ViewBuilder
@@ -158,12 +147,48 @@ struct MainMapSearchSheet: View {
         .frame(maxHeight: 220)
     }
 
-    private var sheetHeight: CGFloat {
+    private var restingSheetHeight: CGFloat {
         if isCollapsedSearchOnly {
             return collapsedSheetVisualHeight
         }
-        if resultSheetExpanded { return 550 + bottomInset }
+        if resultSheetExpanded { return expandedSheetHeight }
         return selectedBeach == nil ? 104 + bottomInset : 304 + bottomInset
+    }
+
+    private var interactiveSheetHeight: CGFloat {
+        let baseHeight = restingSheetHeight
+        guard sheetDragTranslation != 0 else { return baseHeight }
+
+        if sheetDragTranslation < 0 {
+            return min(expandedSheetHeight, baseHeight + abs(sheetDragTranslation))
+        }
+
+        if resultSheetExpanded {
+            return max(collapsedSheetVisualHeight, baseHeight - sheetDragTranslation)
+        }
+
+        return baseHeight
+    }
+
+    private var sheetDragGesture: some Gesture {
+        DragGesture(minimumDistance: 8)
+            .updating($sheetDragTranslation) { value, state, _ in
+                state = value.translation.height
+            }
+            .onEnded { value in
+                let shouldExpand = value.translation.height < -36 || value.predictedEndTranslation.height < -96
+                let shouldCollapse = value.translation.height > 36 || value.predictedEndTranslation.height > 96
+
+                withAnimation(.snappy) {
+                    if shouldExpand {
+                        resultSheetExpanded = true
+                        onDragExpansionChange(true)
+                    } else if shouldCollapse {
+                        resultSheetExpanded = false
+                        onDragExpansionChange(false)
+                    }
+                }
+            }
     }
 
     private var isCollapsedSearchOnly: Bool {
@@ -176,6 +201,7 @@ struct MainMapSearchSheet: View {
 
     private var collapsedSheetVisualHeight: CGFloat { 126 }
     private var collapsedSearchFieldBottomFromScreen: CGFloat { 41 }
+    private var expandedSheetHeight: CGFloat { 550 + bottomInset }
 }
 
 struct BeachResultSummaryContent {
