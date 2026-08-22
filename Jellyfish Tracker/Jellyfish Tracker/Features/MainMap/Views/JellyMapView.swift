@@ -451,13 +451,7 @@ struct JellyMapView: View {
     }
 
     private func forecastRoutePath(for track: JellyfishTrack) -> [CLLocationCoordinate2D] {
-        var path = [track.coordinate(at: 0)]
-        var sampleHour = routeSampleStepHours
-        while sampleHour <= 24.000_1 {
-            path.append(track.coordinate(at: min(sampleHour, 24)))
-            sampleHour += routeSampleStepHours
-        }
-        return path
+        track.forecastPath(at: 24, sampleIntervalHours: routeSampleStepHours)
     }
 
     private func routeSegments(for path: [CLLocationCoordinate2D]) -> [ForecastRouteSegment] {

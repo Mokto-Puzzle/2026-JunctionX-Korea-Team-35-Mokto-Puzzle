@@ -171,3 +171,10 @@ Jellyfish Tracker는 JunctionX Korea 2026을 위해 현재 개발 중입니다. 
 - [남해에서 경북 동해안까지 확산된 해파리 피해 (경향신문, 2025-07-29)](https://v.daum.net/v/20250729133129561)
 - [계속되는 해파리 위험에 대비하는 경북 동해안 해수욕장 (매일신문, 2026-06-17)](https://v.daum.net/v/20260617181257739)
 - [경북소방본부 여름철 해파리 쏘임 사고 안전수칙 (2026-07-15)](https://inseri.gb.go.kr/Main/page.do?BD_CODE=bbs_bodo&B_LEVEL=0&B_NUM=510115901&B_STEP=510115900&Start=0&V_NUM=14579&bdName=&cmd=2&dept_code=&dept_name=&key=4&mnu_uid=6792&p1=0&p2=0&tbbscode1=bbs_bodo&word=)
+
+# Local API configuration
+
+For local demos, copy `Jellyfish Tracker/Jellyfish Tracker/Resources/APIKeys.example.plist`
+to `APIKeys.plist` in the same directory and replace the placeholder values. The
+real file is ignored by Git. Treat a built app as containing those credentials;
+production deployments should call protected public-data APIs through a server proxy.

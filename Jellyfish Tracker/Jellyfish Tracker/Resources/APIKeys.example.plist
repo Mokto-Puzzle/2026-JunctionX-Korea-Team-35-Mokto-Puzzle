@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NIFS_API_KEY</key>
+	<string>YOUR_NIFS_API_KEY</string>
+	<key>TOUR_API_SERVICE_KEY</key>
+	<string>YOUR_TOUR_API_SERVICE_KEY</string>
+	<key>KMA_API_HUB_KEY</key>
+	<string>YOUR_KMA_API_HUB_KEY</string>
+	<key>OCEAN_CURRENT_SERVICE_KEY</key>
+	<string>YOUR_OCEAN_CURRENT_SERVICE_KEY</string>
+	<key>ROMS_SERVICE_KEY</key>
+	<string>YOUR_ROMS_SERVICE_KEY</string>
+</dict>
+</plist>

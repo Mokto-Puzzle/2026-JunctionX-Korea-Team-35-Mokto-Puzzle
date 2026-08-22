@@ -360,18 +360,19 @@ struct JellyfishTrack: Identifiable, Hashable {
         return path
     }
 
-    func forecastPath(at hour: Double) -> [CLLocationCoordinate2D] {
+    func forecastPath(at hour: Double, sampleIntervalHours: Double = 0.5) -> [CLLocationCoordinate2D] {
         guard hour > 0, supportedFutureHorizon > 0,
               let current = checkpoints.first(where: { $0.hour == 0 })?.coordinate else { return [] }
         let supportedEnd = min(hour, supportedFutureHorizon)
+        let interval = min(max(sampleIntervalHours, 0.5), supportedEnd)
         var path = [current]
-        var sampleHour = min(0.5, supportedEnd)
+        var sampleHour = interval
         while sampleHour <= supportedEnd + 0.000_1 {
             let candidate = coordinate(at: min(sampleHour, supportedEnd))
             guard Self.segmentIsWater(from: path[path.count - 1], to: candidate) else { break }
             path.append(candidate)
             if sampleHour == supportedEnd { break }
-            sampleHour = min(sampleHour + 0.5, supportedEnd)
+            sampleHour = min(sampleHour + interval, supportedEnd)
         }
         return path
     }
