@@ -239,19 +239,44 @@ struct LiveOceanDataProvider: OceanDataProviding {
                 coastline: GyeongbukCoastline.mask,
                 seed: UInt64(20_260_822 + index * 10_007)
             )
+            var backcastEngine = engine
+            backcastEngine.forecastHours = Self.demoBackcastHours(
+                observedAt: bulletin.report.observedDate,
+                referenceDate: referenceDate
+            )
+            backcastEngine.checkpointHours = 6
+            let backcastField = SpatiotemporalOceanField(
+                samples: fieldSamples,
+                temporalPolicy: .boundedPersistence(validHours: 0...backcastEngine.forecastHours)
+            )
+            let backcast = backcastEngine.backcast(
+                observation: JellyfishObservation(
+                    coordinate: origin,
+                    species: species,
+                    initialUncertaintyRadius: regionalObservation.seed.uncertaintyRadius
+                ),
+                field: backcastField,
+                coastline: GyeongbukCoastline.mask,
+                seed: UInt64(20_260_822 + index * 10_007 + 4_099)
+            )
+            let historicalPoints = backcast.points.filter { $0.hour < 0 }
             return JellyfishTrack(
                 id: "nifs-\(regionalObservation.species.slug)-\(regionalObservation.seed.slug)",
                 species: species,
                 observedAt: "NIFS \(bulletin.report.dateText) · \(regionalObservation.seed.displayName) \(regionalObservation.density.englishName)",
                 originKind: .officialRegionEstimate,
-                checkpoints: result.points.map { ($0.hour, $0.coordinate) },
-                uncertaintyRadii: Dictionary(uniqueKeysWithValues: result.points.map { ($0.hour, $0.uncertaintyRadius) }),
+                checkpoints: historicalPoints.map { ($0.hour, $0.coordinate) }
+                    + result.points.map { ($0.hour, $0.coordinate) },
+                uncertaintyRadii: Dictionary(uniqueKeysWithValues:
+                    historicalPoints.map { ($0.hour, $0.uncertaintyRadius) }
+                        + result.points.map { ($0.hour, $0.uncertaintyRadius) }
+                ),
                 particleSnapshots: Dictionary(uniqueKeysWithValues: result.points.map { ($0.hour, $0.particles) }),
                 provenance: .live(
                     source: usesFallbackForcing
                         ? "NIFS regional observation + demo ocean forcing"
                         : hasROMSForecast && hasMarineForecast
-                            ? "NIFS + KHOA ROMS current forecast + KMA small-zone wave forecast"
+                            ? "NIFS regional estimate + ocean-field backcast + KHOA/KMA forecast"
                             : "NIFS + mixed live ocean forcing with partial persistence",
                     observedAt: bulletin.report.observedDate,
                     quality: usesFallbackForcing ? .mock : .derived,
@@ -259,6 +284,14 @@ struct LiveOceanDataProvider: OceanDataProviding {
                 )
             )
         }
+    }
+
+    private static func demoBackcastHours(observedAt: Date?, referenceDate: Date) -> Double {
+        guard let observedAt else { return 24 }
+        let elapsed = referenceDate.timeIntervalSince(observedAt) / 3_600
+        // The demo slider exposes up to 75 hours. Keep a useful minimum trail when
+        // a bulletin date has day precision and was published earlier today.
+        return min(max(ceil(elapsed / 6) * 6, 24), 75)
     }
 
     private static func fieldSamples(

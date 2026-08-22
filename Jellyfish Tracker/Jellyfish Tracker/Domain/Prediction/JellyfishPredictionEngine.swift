@@ -307,6 +307,42 @@ struct JellyfishPredictionEngine {
         coastline: any CoastlineMask,
         seed: UInt64
     ) -> JellyfishPredictionResult {
+        integrate(
+            observation: observation,
+            field: field,
+            coastline: coastline,
+            seed: seed,
+            timeDirection: 1
+        )
+    }
+
+    /// Produces a demo-grade regional backcast from the latest observation.
+    /// The forcing is reversed, while diffusion and coastline collision use the
+    /// same rules as the forecast. Negative hours explicitly identify estimates,
+    /// not historical sightings.
+    func backcast(
+        observation: JellyfishObservation,
+        field: SpatiotemporalOceanField,
+        coastline: any CoastlineMask,
+        seed: UInt64
+    ) -> JellyfishPredictionResult {
+        let result = integrate(
+            observation: observation,
+            field: field,
+            coastline: coastline,
+            seed: seed,
+            timeDirection: -1
+        )
+        return .init(points: result.points.sorted { $0.hour < $1.hour })
+    }
+
+    private func integrate(
+        observation: JellyfishObservation,
+        field: SpatiotemporalOceanField,
+        coastline: any CoastlineMask,
+        seed: UInt64,
+        timeDirection: Double
+    ) -> JellyfishPredictionResult {
         let count = max(particleCount, 20)
         let steps = max(Int(forecastHours * 3600 / stepSeconds), 1)
         let checkpointStep = max(Int(checkpointHours * 3600 / stepSeconds), 1)
@@ -329,11 +365,11 @@ struct JellyfishPredictionEngine {
                     continue
                 }
                 let current = velocity(
-                    speed: forcing.currentSpeed * particles[index].speedBias,
+                    speed: forcing.currentSpeed * particles[index].speedBias * timeDirection,
                     direction: forcing.currentDirection + particles[index].directionBias
                 )
                 let wind = velocity(
-                    speed: forcing.windSpeed * windage,
+                    speed: forcing.windSpeed * windage * timeDirection,
                     direction: forcing.windDirection + particles[index].directionBias * 0.35
                 )
                 let sigma = sqrt(2 * horizontalDiffusivity(forcing) * stepSeconds)
@@ -355,7 +391,7 @@ struct JellyfishPredictionEngine {
             }
             if step.isMultiple(of: checkpointStep) || step == steps {
                 points.append(predictionPoint(
-                    hour: Double(step) * stepSeconds / 3600,
+                    hour: Double(step) * stepSeconds / 3600 * timeDirection,
                     particles: particles, origin: observation.coordinate
                 ))
             }

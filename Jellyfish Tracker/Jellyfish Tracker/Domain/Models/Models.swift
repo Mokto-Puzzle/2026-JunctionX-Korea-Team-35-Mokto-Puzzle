@@ -343,7 +343,7 @@ struct JellyfishTrack: Identifiable, Hashable {
     func historyPath(at hour: Double) -> [CLLocationCoordinate2D] {
         let end = min(hour, 0)
         if checkpoints.contains(where: { $0.hour < 0 }) {
-            return checkpoints.filter { $0.hour <= end }.map(\.coordinate)
+            return checkpoints.filter { $0.hour <= end }.sorted { $0.hour < $1.hour }.map(\.coordinate)
         }
         // Official regional reports do not contain an exact historical route.
         // Only explicitly labelled demo tracks may synthesize a preview backcast.

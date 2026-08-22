@@ -28,6 +28,31 @@ final class JellyfishPredictionEngineTests: XCTestCase {
         XCTAssertEqual(sixHour.coordinate.latitude, origin.latitude, accuracy: 0.01)
     }
 
+    func testBackcastReversesForcingAndUsesNegativeHours() throws {
+        var engine = JellyfishPredictionEngine(particleCount: 1_000)
+        engine.forecastHours = 6
+        engine.checkpointHours = 3
+        let forcing = OceanForcing(
+            currentDirection: 90,
+            currentSpeed: 1,
+            windDirection: 0,
+            windSpeed: 0,
+            waveHeight: 0,
+            waterTemperature: 20
+        )
+        let result = engine.backcast(
+            observation: JellyfishObservation(coordinate: origin, species: "Nomura's jellyfish"),
+            field: .init(constant: forcing, around: origin),
+            coastline: AllWaterMask(),
+            seed: 42
+        )
+        let sixHoursAgo = try XCTUnwrap(result.points.first { $0.hour == -6 })
+
+        XCTAssertEqual(result.points.map(\.hour), [-6, -3, 0])
+        XCTAssertLessThan(sixHoursAgo.coordinate.longitude, origin.longitude)
+        XCTAssertEqual(sixHoursAgo.coordinate.latitude, origin.latitude, accuracy: 0.01)
+    }
+
     func testUncertaintyExpandsOverForecastHorizon() throws {
         let result = JellyfishPredictionEngine(particleCount: 800).predict(
             observation: JellyfishObservation(coordinate: origin, species: "Moon jellyfish"),
