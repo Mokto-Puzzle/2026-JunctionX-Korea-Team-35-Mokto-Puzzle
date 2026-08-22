@@ -63,11 +63,11 @@ enum DataQuality: String, Hashable, Codable {
     var badge: String? {
         switch self {
         case .officialExact: nil
-        case .officialRegional: "REGION ESTIMATE"
+        case .officialRegional: "REGIONAL DATA"
         case .derived: "PREDICTION"
-        case .stale: "OUTDATED"
-        case .mock: "!"
-        case .missing: "NO DATA"
+        case .stale: "RECENT DATA"
+        case .mock: nil
+        case .missing: "CHECK LATER"
         }
     }
 }
@@ -147,7 +147,7 @@ struct Beach: Identifiable, Hashable, Codable {
     }
 
     func marked(_ value: String, fields: BeachDataField...) -> String {
-        quality(for: fields) == .mock ? "\(value)!" : value
+        value
     }
 
     var coordinate: CLLocationCoordinate2D {

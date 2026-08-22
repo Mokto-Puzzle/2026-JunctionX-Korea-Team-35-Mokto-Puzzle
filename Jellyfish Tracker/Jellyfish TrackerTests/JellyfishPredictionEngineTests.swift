@@ -194,10 +194,10 @@ final class JellyfishPredictionEngineTests: XCTestCase {
         XCTAssertTrue(url.absoluteString.contains("test%2Bkey"))
     }
 
-    func testMockMarkerIsOnlyAppliedToMockValues() throws {
+    func testReferenceValuesDoNotAddAlertPunctuation() throws {
         let beach = try XCTUnwrap(MockOceanDataProvider.beaches.first)
         XCTAssertEqual(beach.provenance(for: .waveHeight).quality, .mock)
-        XCTAssertTrue(beach.marked("0.8 m", fields: .waveHeight).hasSuffix("!"))
+        XCTAssertEqual(beach.marked("0.8 m", fields: .waveHeight), "0.8 m")
 
         var liveBeach = beach
         liveBeach.mockFields.remove(.waveHeight)

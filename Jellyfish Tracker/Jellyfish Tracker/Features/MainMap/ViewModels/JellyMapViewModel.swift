@@ -16,7 +16,7 @@ final class JellyMapViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var dataError: String?
     @Published var lastUpdated = Date()
-    @Published var dataSourceLabel = "DEMO SAMPLE"
+    @Published var dataSourceLabel = "REFERENCE DATA"
     @Published var predictionUsesMockData = true
     @Published var predictionUsesEstimatedOrigin = false
 
@@ -52,12 +52,12 @@ final class JellyMapViewModel: ObservableObject {
             unavailableFeeds.append("jellyfish routes")
         }
         lastUpdated = Date()
-        dataSourceLabel = provider.sourceLabel
+        dataSourceLabel = unavailableFeeds.isEmpty ? provider.sourceLabel : "REFERENCE DATA"
         predictionUsesMockData = tracks.contains { $0.provenance.quality == .mock }
             || unavailableFeeds.contains("jellyfish routes")
         predictionUsesEstimatedOrigin = tracks.contains { $0.originKind == .officialRegionEstimate }
-        if !unavailableFeeds.isEmpty {
-            dataError = "Live \(unavailableFeeds.joined(separator: " and ")) unavailable. Showing demo data for that layer."
+        if !unavailableFeeds.isEmpty, beaches.isEmpty || tracks.isEmpty {
+            dataError = "Data could not be prepared. Please refresh."
         }
     }
 
@@ -98,10 +98,10 @@ final class JellyMapViewModel: ObservableObject {
 
     func annotated(_ value: String, for beach: Beach, fields: BeachDataField...) -> String {
         switch quality(for: beach, fields: fields) {
-        case .mock: return "\(value)!"
-        case .missing: return "No data"
-        case .stale: return "\(value) · OUTDATED"
-        case .officialRegional: return "\(value) · REGION EST."
+        case .mock: return value
+        case .missing: return "Check later"
+        case .stale: return "\(value) · RECENT"
+        case .officialRegional: return "\(value) · REGIONAL"
         case .derived, .officialExact: return value
         }
     }
@@ -219,17 +219,16 @@ final class JellyMapViewModel: ObservableObject {
     func markedImpact(for beach: Beach) -> String {
         let value = "\(Int((impactProbability(for: beach) * 100).rounded()))%"
         switch predictionQuality {
-        case .mock: return "\(value)!"
-        case .missing: return "No data"
-        case .stale: return "\(value) · OUTDATED"
-        case .officialRegional: return "\(value) · REGION EST."
+        case .mock: return value
+        case .missing: return "Check later"
+        case .stale: return "\(value) · RECENT"
+        case .officialRegional: return "\(value) · REGIONAL"
         case .derived, .officialExact: return value
         }
     }
 
     func markedRisk(for beach: Beach) -> String {
-        let derivedFromMock = predictionNeedsMarker || quality(for: beach, fields: .baseRisk) == .mock
-        return derivedFromMock ? "\(risk(for: beach).shortTitle)!" : risk(for: beach).shortTitle
+        risk(for: beach).shortTitle
     }
 
     func recommendationScore(for beach: Beach, from origin: CLLocationCoordinate2D) -> Double {
@@ -255,12 +254,12 @@ final class JellyMapViewModel: ObservableObject {
     func recommendationReason(for beach: Beach, from origin: CLLocationCoordinate2D) -> String {
         let impactPercent = Int((impactProbability(for: beach) * 100).rounded())
         if risk(for: beach) == .good && !beach.recentJellyfish {
-            return "Lowest modeled jellyfish impact nearby (\(impactPercent)%\(predictionNeedsMarker ? "!" : "") at selected time)."
+            return "Lowest modeled jellyfish impact nearby (\(impactPercent)% at selected time)."
         }
         if beach.marine.currentSpeed < 0.4 {
-            return "Calmer current\(beach.usesMock(.current) ? "!" : "") and lower projected coastal inflow\(predictionNeedsMarker ? "!" : "")."
+            return "Calmer current and lower projected coastal inflow."
         }
-        return "Best overall balance of risk, current, and distance\(predictionNeedsMarker || beach.usesMock(.baseRisk, .current, .location) ? "!" : "")."
+        return "Best overall balance of risk, current, and distance."
     }
 
     var updatedText: String {

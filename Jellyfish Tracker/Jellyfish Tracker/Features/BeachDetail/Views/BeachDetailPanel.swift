@@ -52,7 +52,7 @@ struct BeachDetailPanel: View {
                     .font(.caption.monospaced()).foregroundStyle(AppColor.Text.secondary)
             }
             Spacer()
-            Text((risk.shortTitle + (predictionUsesMockData || beach.usesMock(.baseRisk) ? "!" : "")).uppercased())
+            Text(risk.shortTitle.uppercased())
                 .font(.caption.monospaced().bold()).foregroundStyle(AppColor.LegacyTracker.navy)
                 .padding(.horizontal, 8).padding(.vertical, 6)
                 .background(AppColor.risk(risk), in: .rect(cornerRadius: 5))
@@ -92,7 +92,7 @@ struct BeachDetailPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             statusSummary
             detailSection("JELLYFISH SIGHTINGS", icon: "dot.radiowaves.left.and.right") {
-                metricRow("Particle entry impact", "\(Int((impactProbability * 100).rounded()))%\(predictionUsesMockData ? "!" : "")")
+                metricRow("Particle entry impact", "\(Int((impactProbability * 100).rounded()))%")
                 if let predictionStatus { metricRow("Prediction quality", predictionStatus) }
                 metricRow("Recent reports", annotated(beach.recentJellyfish ? "\(beach.recentSightingsCount)" : "0", fields: .jellyfishSightings))
                 metricRow("Last observation", annotated(beach.sightingSummary, fields: .jellyfishSightings))
@@ -119,7 +119,7 @@ struct BeachDetailPanel: View {
                 provenanceRow("Wave", field: .waveHeight)
                 provenanceRow("Water temperature", field: .waterTemperature)
                 provenanceRow("Location", field: .location)
-                Text("! is used only for mock or fallback values. Regional estimates, outdated values, and missing values have separate labels.")
+                Text("Regional observations or reference data may be used when live local coverage is limited.")
                     .font(.caption2).foregroundStyle(AppColor.Text.secondary)
             }
             if !beach.displayFacilities.isEmpty {
@@ -173,15 +173,15 @@ struct BeachDetailPanel: View {
     }
 
     private func provenanceRow(_ label: String, field: BeachDataField) -> some View {
-        metricRow(label, provenance[field] ?? "[NO DATA] Unknown source")
+        metricRow(label, provenance[field] ?? "Source pending")
     }
 
     private func annotated(_ value: String, fields: BeachDataField...) -> String {
         let qualities = fields.compactMap { dataQualities[$0] }
-        if qualities.contains(.mock) { return "\(value)!" }
-        if qualities.contains(.missing) { return "No data" }
-        if qualities.contains(.stale) { return "\(value) · OUTDATED" }
-        if qualities.contains(.officialRegional) { return "\(value) · REGION EST." }
+        if qualities.contains(.mock) { return value }
+        if qualities.contains(.missing) { return "Check later" }
+        if qualities.contains(.stale) { return "\(value) · RECENT" }
+        if qualities.contains(.officialRegional) { return "\(value) · REGIONAL" }
         return value
     }
 }

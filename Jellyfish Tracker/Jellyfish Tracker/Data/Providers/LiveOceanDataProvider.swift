@@ -64,10 +64,10 @@ enum OceanDataProviderFactory {
 struct LiveOceanDataProvider: OceanDataProviding {
     let configuration: APIEnvironment
     // Live NIFS reports provide observed regions rather than exact points. They are modeled
-    // as official regional estimates and marked with "!", not treated as mock observations.
+    // as regional estimates rather than exact observations.
     let predictionUsesMockData = false
     var sourceLabel: String {
-        "MODEL · MIXED INPUT"
+        "PUBLIC DATA MODEL"
     }
 
     func fetchBeaches() async throws -> [Beach] {
