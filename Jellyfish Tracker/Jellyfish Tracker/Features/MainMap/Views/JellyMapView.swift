@@ -6,9 +6,9 @@ struct JellyMapView: View {
     @StateObject private var model = JellyMapViewModel()
     @StateObject private var location = LocationManager()
     @State private var showComparison = false
-    @State private var detailExpanded = false
     @State private var showLayerMenu = false
     @State private var searchExpanded = false
+    @State private var resultSheetExpanded = false
     @State private var visualizeTemperature = false
     @FocusState private var searchFocused: Bool
 
@@ -38,35 +38,13 @@ struct JellyMapView: View {
                         .frame(maxHeight: .infinity)
                 }
 
-                if let beach = model.selectedBeach {
-                    BeachDetailPanel(
-                        beach: beach,
-                        risk: model.risk(for: beach),
-                        impactProbability: model.impactProbability(for: beach),
-                        updatedText: model.updatedText,
-                        sourceLabel: model.dataSourceLabel,
-                        predictionUsesMockData: model.predictionNeedsMarker,
-                        predictionStatus: model.predictionBadge,
-                        provenance: Dictionary(uniqueKeysWithValues: BeachDataField.allCases.map {
-                            ($0, model.provenanceText(for: beach, field: $0))
-                        }),
-                        dataQualities: Dictionary(uniqueKeysWithValues: BeachDataField.allCases.map {
-                            ($0, model.quality(for: beach, fields: $0))
-                        }),
-                        expanded: $detailExpanded,
-                        onClose: { model.selectedBeach = nil; detailExpanded = false }
-                    )
+                bottomControls(bottomInset: proxy.safeAreaInsets.bottom)
                     .frame(maxHeight: .infinity, alignment: .bottom)
-                    .transition(.move(edge: .bottom))
-                } else {
-                    bottomControls(bottomInset: proxy.safeAreaInsets.bottom)
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                }
 
                 if let error = model.dataError {
                     errorToast(error)
                         .frame(maxHeight: .infinity, alignment: .bottom)
-                        .padding(.bottom, model.selectedBeach == nil ? 112 : 200)
+                        .padding(.bottom, sheetBeach == nil ? 112 : 220)
                 }
             }
         }
@@ -77,7 +55,10 @@ struct JellyMapView: View {
         }
         .onChange(of: location.coordinate.latitude) { _, _ in model.focusNearby(location.coordinate) }
         .onChange(of: searchFocused) { _, focused in
-            withAnimation(.snappy) { searchExpanded = focused || !model.searchText.isEmpty }
+            withAnimation(.snappy) {
+                searchExpanded = focused && model.selectedBeach == nil
+                resultSheetExpanded = focused || resultSheetExpanded
+            }
         }
         .fullScreenCover(isPresented: $showComparison) {
             NearbyComparisonView(model: model, userCoordinate: location.coordinate)
@@ -95,8 +76,11 @@ struct JellyMapView: View {
                 Annotation("", coordinate: beach.coordinate, anchor: .bottom) {
                     Button {
                         withAnimation(.snappy) {
-                            model.selectedBeach = beach
-                            detailExpanded = false
+                            model.focus(on: beach)
+                            model.searchText = beach.searchDisplayName
+                            resultSheetExpanded = false
+                            searchExpanded = false
+                            searchFocused = false
                         }
                     } label: {
                         BeachPin(
@@ -309,44 +293,50 @@ struct JellyMapView: View {
 
     private func bottomControls(bottomInset: CGFloat) -> some View {
         VStack(spacing: 12) {
-            HStack {
-                Button {
-                    model.searchText = ""
-                    model.selectedBeach = nil
-                    searchFocused = false
-                    model.focusNearby(location.coordinate)
-                } label: {
-                    Image(systemName: "location.circle")
-                        .font(.system(size: 19, weight: .semibold))
-                        .foregroundStyle(Color.jellyMint)
-                        .frame(width: 38, height: 38)
-                        .background(Color.white.opacity(0.72), in: .circle)
-                        .overlay {
-                            Circle().stroke(Color.jellyMint.opacity(0.25), lineWidth: 1)
-                        }
+            if !resultSheetExpanded {
+                HStack {
+                    Button {
+                        model.searchText = ""
+                        model.selectedBeach = nil
+                        resultSheetExpanded = false
+                        searchExpanded = false
+                        searchFocused = false
+                        model.focusNearby(location.coordinate)
+                    } label: {
+                        Image(systemName: "location.circle")
+                            .font(.system(size: 19, weight: .semibold))
+                            .foregroundStyle(Color.jellyMint)
+                            .frame(width: 38, height: 38)
+                            .background(Color.white.opacity(0.72), in: .circle)
+                            .overlay {
+                                Circle().stroke(Color.jellyMint.opacity(0.25), lineWidth: 1)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Near me")
+                    Spacer()
+                    Button { showComparison = true } label: {
+                        Label("Compare", systemImage: "rectangle.3.group")
+                            .font(.custom("Helvetica-Bold", size: 16, relativeTo: .callout))
+                            .padding(.horizontal, 2)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Near me")
-                Spacer()
-                Button { showComparison = true } label: {
-                    Label("Compare", systemImage: "rectangle.3.group")
-                        .font(.custom("Helvetica-Bold", size: 16, relativeTo: .callout))
-                        .padding(.horizontal, 2)
-                }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
-                .controlSize(.large)
+                .padding(.horizontal, 20)
             }
-            .padding(.horizontal, 20)
             searchSheet(bottomInset: bottomInset)
         }
     }
 
     private func searchSheet(bottomInset: CGFloat) -> some View {
-        VStack(spacing: 10) {
+        let beach = sheetBeach
+        return VStack(spacing: 10) {
             Capsule()
                 .fill(Color.jellyCaption.opacity(0.48))
                 .frame(width: 36, height: 5)
+                .padding(.bottom, 6)
             HStack {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField("Search", text: $model.searchText)
@@ -354,8 +344,15 @@ struct JellyMapView: View {
                     .submitLabel(.search)
                     .onSubmit { selectSearchResult(model.filteredBeaches.first) }
                 if !model.searchText.isEmpty {
-                    Button { model.searchText = "" } label: { Image(systemName: "xmark.circle.fill") }
-                        .foregroundStyle(.secondary)
+                    Button {
+                        model.searchText = ""
+                        model.selectedBeach = nil
+                        resultSheetExpanded = false
+                        searchExpanded = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .foregroundStyle(.secondary)
                 } else {
                     Image(systemName: "mic.fill").foregroundStyle(.secondary)
                 }
@@ -364,7 +361,18 @@ struct JellyMapView: View {
             .frame(height: 44)
             .background(AppColor.Primitive.Common.shade100.opacity(0.58), in: .capsule)
 
-            if searchExpanded {
+            if let beach {
+                BeachResultSummary(
+                    beach: beach,
+                    risk: model.risk(for: beach),
+                    jellyfishText: model.annotated(beach.recentJellyfish ? "\(beach.recentSightingsCount) recent" : "None", for: beach, fields: .jellyfishSightings),
+                    currentText: model.annotated(String(format: "%.2f m/s", beach.marine.currentSpeed), for: beach, fields: .current),
+                    waterText: model.annotated(String(format: "%.1f°C", beach.marine.waterTemperature), for: beach, fields: .waterTemperature),
+                    usesMockRisk: model.recommendationUsesMockData(for: beach)
+                )
+                .padding(.top, 10)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if searchExpanded {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(model.filteredBeaches.prefix(6)), id: \.id) { beach in
@@ -395,10 +403,15 @@ struct JellyMapView: View {
                 }
                 .frame(maxHeight: 220)
             }
+
+            if resultSheetExpanded {
+                Spacer(minLength: 0)
+            }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 12)
+        .padding(.top, 7)
         .padding(.bottom, 16)
+        .frame(height: resultSheetHeight(bottomInset: bottomInset), alignment: .top)
         .background {
             UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38)
                 .fill(.ultraThinMaterial)
@@ -410,6 +423,29 @@ struct JellyMapView: View {
                 .ignoresSafeArea(edges: .bottom)
         }
         .shadow(color: .black.opacity(0.12), radius: 25, y: -4)
+        .contentShape(.rect)
+        .gesture(
+            DragGesture(minimumDistance: 16).onEnded { value in
+                withAnimation(.snappy) {
+                    if value.translation.height < -36 { resultSheetExpanded = true }
+                    if value.translation.height > 36 {
+                        resultSheetExpanded = false
+                        searchFocused = false
+                    }
+                }
+            }
+        )
+    }
+
+    private var sheetBeach: Beach? {
+        if let selected = model.selectedBeach { return selected }
+        guard !model.searchText.isEmpty else { return nil }
+        return model.filteredBeaches.first
+    }
+
+    private func resultSheetHeight(bottomInset: CGFloat) -> CGFloat {
+        if resultSheetExpanded { return 550 + bottomInset }
+        return sheetBeach == nil ? 104 + bottomInset : 304 + bottomInset
     }
 
     private var timelineStatus: String {
@@ -434,11 +470,92 @@ struct JellyMapView: View {
         guard let beach else { return }
         model.focus(on: beach)
         model.selectedBeach = beach
-        model.searchText = ""
+        model.searchText = beach.searchDisplayName
         searchFocused = false
         searchExpanded = false
+        resultSheetExpanded = false
     }
 
+}
+
+private struct BeachResultSummary: View {
+    let beach: Beach
+    let risk: RiskLevel
+    let jellyfishText: String
+    let currentText: String
+    let waterText: String
+    let usesMockRisk: Bool
+
+    var body: some View {
+        VStack(spacing: 20) {
+            HStack(spacing: 12) {
+                ResultRiskBadge(risk: risk, usesMockRisk: usesMockRisk)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(beach.displayName)
+                        .font(.custom("Helvetica-Bold", size: 18, relativeTo: .headline))
+                        .foregroundStyle(Color.jellyInk)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                    Text("\(beach.displayCity), Gyeongsangbuk-do")
+                        .font(.custom("Helvetica", size: 13, relativeTo: .caption))
+                        .foregroundStyle(Color.jellyCaption)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 0) {
+                ResultMetric(symbol: "dot.radiowaves.left.and.right", title: "jellyfish", value: jellyfishText)
+                Divider().overlay(AppColor.Primitive.Common.shade100)
+                ResultMetric(symbol: "arrow.up.right", title: "current", value: currentText)
+                Divider().overlay(AppColor.Primitive.Common.shade100)
+                ResultMetric(symbol: "thermometer.medium", title: "water", value: waterText)
+            }
+            .frame(height: 100)
+            .background(Color.white.opacity(0.62), in: .rect(cornerRadius: 16))
+        }
+    }
+}
+
+private struct ResultRiskBadge: View {
+    let risk: RiskLevel
+    let usesMockRisk: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "aqi.low")
+                .font(.system(size: 18, weight: .semibold))
+            Text(risk.shortTitle.uppercased() + (usesMockRisk ? "" : ""))
+                .font(.custom("Helvetica", size: 12, relativeTo: .caption))
+        }
+        .foregroundStyle(Color.jellyMint)
+        .padding(.horizontal, 12)
+        .frame(height: 34)
+        .background(AppColor.Primitive.Green.shade100.opacity(0.72), in: .capsule)
+    }
+}
+
+private struct ResultMetric: View {
+    let symbol: String
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: symbol)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.jellyMint)
+            Text(title)
+                .font(.custom("Helvetica", size: 13, relativeTo: .caption))
+                .foregroundStyle(Color.jellyCaption)
+            Text(value)
+                .font(.custom("Helvetica-Bold", size: 18, relativeTo: .body))
+                .foregroundStyle(Color.jellyInk)
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+        }
+        .frame(maxWidth: .infinity)
+    }
 }
 
 private struct BeachPin: View {
@@ -502,6 +619,12 @@ private struct BeachPin: View {
         case .later: "BeachPinRed"
         case .unknown: "BeachPinGreen"
         }
+    }
+}
+
+private extension Beach {
+    var searchDisplayName: String {
+        displayName.replacingOccurrences(of: " Beach", with: "")
     }
 }
 
