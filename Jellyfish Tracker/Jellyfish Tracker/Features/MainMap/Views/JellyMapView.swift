@@ -290,7 +290,9 @@ struct JellyMapView: View {
             pitch: 0
         ))
         model.position = position
-        mapPosition = position
+        withAnimation(.easeInOut(duration: 0.75)) {
+            mapPosition = position
+        }
     }
 
     private func presentComparison() {
