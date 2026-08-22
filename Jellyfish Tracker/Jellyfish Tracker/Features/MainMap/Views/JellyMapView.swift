@@ -217,7 +217,7 @@ struct JellyMapView: View {
         .id("\(model.beaches.count)-\(model.tracks.count)")
         .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
         .mapControls { MapScaleView() }
-        .onMapCameraChange(frequency: .continuous) { context in
+        .onMapCameraChange(frequency: .onEnd) { context in
             mapCameraDistance = context.camera.distance
         }
     }
