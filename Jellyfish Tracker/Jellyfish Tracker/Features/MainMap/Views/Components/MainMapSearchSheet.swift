@@ -160,7 +160,7 @@ struct MainMapSearchSheet: View {
 
     private var sheetHeight: CGFloat {
         if isCollapsedSearchOnly {
-            return max(92, collapsedSheetVisualHeight - bottomInset)
+            return collapsedSheetVisualHeight
         }
         if resultSheetExpanded { return 550 + bottomInset }
         return selectedBeach == nil ? 104 + bottomInset : 304 + bottomInset
@@ -171,7 +171,7 @@ struct MainMapSearchSheet: View {
     }
 
     private var collapsedSearchFieldBottomPadding: CGFloat {
-        max(7, collapsedSearchFieldBottomFromScreen - bottomInset)
+        collapsedSearchFieldBottomFromScreen
     }
 
     private var collapsedSheetVisualHeight: CGFloat { 126 }
