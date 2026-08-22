@@ -18,10 +18,60 @@ struct MainMapSearchSheet: View {
     let onDragExpansionChange: (Bool) -> Void
 
     var body: some View {
+        sheetContent
+            .frame(height: sheetHeight, alignment: .top)
+            .background {
+                UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38)
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38)
+                            .fill(Color.white.opacity(0.28))
+                    }
+                    .padding(.bottom, -bottomInset)
+                    .ignoresSafeArea(edges: .bottom)
+            }
+            .shadow(color: .black.opacity(0.12), radius: 25, y: -4)
+            .contentShape(.rect)
+            .gesture(
+                DragGesture(minimumDistance: 16).onEnded { value in
+                    withAnimation(.snappy) {
+                        if value.translation.height < -36 {
+                            resultSheetExpanded = true
+                            onDragExpansionChange(true)
+                        }
+                        if value.translation.height > 36 {
+                            resultSheetExpanded = false
+                            onDragExpansionChange(false)
+                        }
+                    }
+                }
+            )
+    }
+
+    @ViewBuilder
+    private var sheetContent: some View {
+        if isCollapsedSearchOnly {
+            collapsedSearchContent
+        } else {
+            expandedSearchContent
+        }
+    }
+
+    private var collapsedSearchContent: some View {
+        ZStack(alignment: .bottom) {
+            sheetGrabber
+                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.top, 7)
+
+            searchField
+                .padding(.horizontal, 20)
+                .padding(.bottom, collapsedSearchFieldBottomPadding)
+        }
+    }
+
+    private var expandedSearchContent: some View {
         VStack(spacing: 10) {
-            Capsule()
-                .fill(Color.jellyCaption.opacity(0.48))
-                .frame(width: 36, height: 5)
+            sheetGrabber
                 .padding(.bottom, 6)
 
             searchField
@@ -41,33 +91,12 @@ struct MainMapSearchSheet: View {
         .padding(.horizontal, 20)
         .padding(.top, 7)
         .padding(.bottom, 16)
-        .frame(height: sheetHeight, alignment: .top)
-        .background {
-            UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38)
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38)
-                        .fill(Color.white.opacity(0.28))
-                }
-                .padding(.bottom, -bottomInset)
-                .ignoresSafeArea(edges: .bottom)
-        }
-        .shadow(color: .black.opacity(0.12), radius: 25, y: -4)
-        .contentShape(.rect)
-        .gesture(
-            DragGesture(minimumDistance: 16).onEnded { value in
-                withAnimation(.snappy) {
-                    if value.translation.height < -36 {
-                        resultSheetExpanded = true
-                        onDragExpansionChange(true)
-                    }
-                    if value.translation.height > 36 {
-                        resultSheetExpanded = false
-                        onDragExpansionChange(false)
-                    }
-                }
-            }
-        )
+    }
+
+    private var sheetGrabber: some View {
+        Capsule()
+            .fill(Color.jellyCaption.opacity(0.48))
+            .frame(width: 36, height: 5)
     }
 
     private var searchField: some View {
@@ -130,9 +159,23 @@ struct MainMapSearchSheet: View {
     }
 
     private var sheetHeight: CGFloat {
+        if isCollapsedSearchOnly {
+            return max(92, collapsedSheetVisualHeight - bottomInset)
+        }
         if resultSheetExpanded { return 550 + bottomInset }
         return selectedBeach == nil ? 104 + bottomInset : 304 + bottomInset
     }
+
+    private var isCollapsedSearchOnly: Bool {
+        selectedBeach == nil && !searchExpanded && !resultSheetExpanded
+    }
+
+    private var collapsedSearchFieldBottomPadding: CGFloat {
+        max(7, collapsedSearchFieldBottomFromScreen - bottomInset)
+    }
+
+    private var collapsedSheetVisualHeight: CGFloat { 126 }
+    private var collapsedSearchFieldBottomFromScreen: CGFloat { 41 }
 }
 
 struct BeachResultSummaryContent {
@@ -266,4 +309,39 @@ private struct MainMapSearchSheetPreview: View {
 
 #Preview("Search Sheet") {
     MainMapSearchSheetPreview()
+}
+
+#Preview("Search Sheet Collapsed") {
+    @Previewable @State var searchText = ""
+    @Previewable @State var resultSheetExpanded = false
+    @FocusState var searchFocused: Bool
+
+    MainMapSearchSheet(
+        searchText: $searchText,
+        searchFocused: $searchFocused,
+        bottomInset: 34,
+        selectedBeach: nil,
+        searchExpanded: false,
+        resultSheetExpanded: $resultSheetExpanded,
+        filteredBeaches: MockOceanDataProvider.beaches,
+        riskForBeach: { $0.baseRisk },
+        markedRiskForBeach: { $0.baseRisk.shortTitle },
+        distanceTextForBeach: { _ in "1.2 km" },
+        summaryForBeach: { beach in
+            BeachResultSummaryContent(
+                beach: beach,
+                risk: .good,
+                jellyfishText: "None",
+                currentText: "0.06 m/s",
+                waterText: "24.2°C",
+                usesMockRisk: true
+            )
+        },
+        onSubmit: {},
+        onClear: {},
+        onSelectBeach: { _ in },
+        onDragExpansionChange: { _ in }
+    )
+    .frame(width: 402, height: 126, alignment: .bottom)
+    .background(Color(red: 0.78, green: 0.94, blue: 1.0))
 }
