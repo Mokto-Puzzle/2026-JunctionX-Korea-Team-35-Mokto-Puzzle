@@ -45,13 +45,27 @@ marine forecasts, safety notices, or on-site guidance.
 
 ## Public Data and Analysis
 
-The project will use at least one public dataset related to Gyeongsangbuk-do.
-The final datasets and APIs are currently being evaluated. We plan to combine
-jellyfish observations with relevant near-real-time marine and environmental
-data, then derive location-based occurrence information from those signals.
+The current prototype combines NIFS regional jellyfish reports with KHOA and
+KMA marine data. The movement model runs a particle ensemble from each NIFS
+regional estimate and calculates a 24-hour forecast using time-varying current,
+wind, wave, and water-temperature forcing.
 
-Dataset names, update intervals, analysis methodology, and limitations will be
-documented here as they are finalized.
+- NIFS: report time, species, density, regional occurrence and outlook
+- KHOA HF current: latest observed current where local coverage is available
+- KHOA ROMS: forecast current and water temperature
+- KHOA numerical tidal-current map: gridded direction and speed for the
+  Gyeongsangbuk-do coast, sampled every three hours from 0 to +24 hours
+- KMA marine forecast: wind, waves, precipitation and water temperature
+- Korea Tourism Organization: beach location and tourism information
+
+The tidal-current API returns speed in `cm/s`; the client converts it to `m/s`.
+Nearshore tidal current and the broader ROMS tendency are fused as vectors
+(70:30) before particle integration. Missing sources degrade independently so
+one failed feed does not invalidate all model output.
+
+NIFS publications describe regional distributions rather than exact raw sighting
+coordinates. Therefore the starting point is explicitly treated as a regional
+estimate with spatial uncertainty, not an exact observation.
 
 ## Future Improvements
 
@@ -73,9 +87,25 @@ documented here as they are finalized.
 
 ## Project Status
 
-Jellyfish Tracker is currently in development for JunctionX Korea 2026.
-Technical architecture, public-data sources, screenshots, and setup instructions
-will be added as the implementation progresses.
+The JunctionX demo build is operational. It includes the MapKit experience,
+nearby beach recommendation and comparison, timeline playback, data layers,
+beach detail summaries, live-data adapters, and the particle-based jellyfish
+movement model. The current Figma file is the final UI design baseline; model
+work must integrate without overriding UI decisions on `develop`.
+
+The model keeps particle identity through time, applies coastline collision to
+every 30-minute integration segment, retains beached particles at their first
+coastal contact, and renders a simplified route only when the complete shortcut
+segment remains over water. This prevents a valid offshore marker from being
+connected by an impossible line across a peninsula.
+
+Verification as of 2026-08-23:
+
+- Official KHOA tidal-current API returned live Gyeongsangbuk-do grid data
+- Debug simulator build succeeded
+- Parser and water-continuity regression tests are included
+- The latest automated test launch was blocked by the local `xcrun/simctl`
+  environment; this was a runner issue after successful compilation
 
 ## References
 
@@ -133,13 +163,26 @@ MVP는 경상북도 관광객과 해수욕객을 위한 해파리 출몰 지도�
 
 ## 공공데이터와 분석
 
-본 프로젝트는 경상북도와 관련된 공공데이터를 최소 한 종류 이상 활용합니다.
-최종 데이터셋과 API는 현재 검토 중입니다. 해파리 관측 정보에 실시간성
-해양·환경 데이터를 결합하고, 이를 분석해 위치별 출몰 정보를 도출할
-예정입니다.
+현재 프로토타입은 NIFS 해파리 지역 관측·전망과 KHOA·KMA 해양 데이터를
+결합합니다. NIFS 지역 추정 영역에서 입자 앙상블을 시작하고, 시간에 따라
+변하는 해류·바람·파도·수온을 입력해 24시간 이동과 해수욕장 영향 가능성을
+계산합니다.
 
-데이터셋 명칭, 갱신 주기, 분석 방법과 한계는 확정되는 대로 이 문서에
-추가합니다.
+- NIFS: 조사 시각, 종, 밀도, 지역별 출현과 전망
+- KHOA HF 해류: 관측 범위가 있는 지역의 최신 해류
+- KHOA ROMS: 예측 해류와 수온
+- KHOA 수치조류도: 경북 연안의 0~24시간 격자 유향·유속(3시간 간격)
+- KMA 해상예보: 바람, 파도, 강수, 수온
+- 한국관광공사: 해수욕장 위치 및 관광 정보
+
+수치조류도의 `cm/s` 유속은 모델 내부에서 `m/s`로 변환합니다. 연안 수치조류
+70%와 광역 ROMS 경향 30%를 방향 벡터로 결합한 뒤 입자 이동에 적용합니다.
+각 API는 독립적으로 성공·실패를 처리하여 하나의 데이터 누락이 전체 예측을
+무효화하지 않도록 구성했습니다.
+
+NIFS 공개 자료는 정확한 원시 신고 좌표가 아니라 지역 분포를 제공하므로,
+출발점은 정확한 관측점이 아닌 공간 불확실성을 포함한 지역 추정값으로
+명시합니다.
 
 ## 향후 개선 사항
 
@@ -161,9 +204,19 @@ MVP는 경상북도 관광객과 해수욕객을 위한 해파리 출몰 지도�
 
 ## 프로젝트 상태
 
-Jellyfish Tracker는 JunctionX Korea 2026을 위해 현재 개발 중입니다. 기술
-구조, 공공데이터 출처, 앱 화면과 실행 방법은 구현이 진행되는 대로
-추가할 예정입니다.
+JunctionX 데모 빌드는 동작 가능한 상태입니다. MapKit 지도, 주변 해수욕장
+추천·비교, 타임라인, 데이터 레이어, 상세 요약, 실데이터 어댑터와 입자 기반
+이동 모델이 구현되어 있습니다. 현재 Figma 파일을 최종 UI 기준으로 사용하며,
+모델 통합 과정에서는 `develop`의 UI 결정을 우선합니다.
+
+입자는 동일 ID로 시간대 전체를 추적하고, 30분 적분 구간마다 해안 충돌을
+검사합니다. 육지에 닿은 입자는 최초 접촉 지점에 정착합니다. 표시 경로를
+큼직하게 단순화할 때도 두 점 사이 전체가 바다인 경우에만 연결하여 반도나
+육지를 가로지르는 선을 만들지 않습니다.
+
+2026-08-23 기준 공식 수치조류 API 실응답과 Debug 빌드를 확인했습니다. 관련
+파서·해상 연속성 회귀 테스트 코드도 포함되어 있습니다. 마지막 자동 테스트
+실행은 컴파일 이후 로컬 `xcrun/simctl` 환경 문제로 러너가 시작되지 못했습니다.
 
 ## 참고 자료
 
