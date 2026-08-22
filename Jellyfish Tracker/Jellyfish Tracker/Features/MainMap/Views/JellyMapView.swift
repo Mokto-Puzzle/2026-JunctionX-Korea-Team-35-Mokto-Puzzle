@@ -160,7 +160,7 @@ struct JellyMapView: View {
 
                 if model.selectedLayers.contains(.predictedPath) {
                     let history = track.historyPath(at: model.forecastHour)
-                    let forecast = track.forecastPath(at: model.forecastHour)
+                    let forecast = forecastRoutePath(for: track)
                     let displayedParticles = Array(track.particles(at: model.forecastHour).enumerated())
                         .filter { $0.offset.isMultiple(of: 12) }
 
@@ -169,8 +169,13 @@ struct JellyMapView: View {
                             .stroke(AppColor.Map.routeHistory, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                     }
                     if forecast.count > 1 {
-                        MapPolyline(coordinates: forecast)
-                            .stroke(AppColor.Text.accent.opacity(0.85), style: StrokeStyle(lineWidth: 5, lineCap: .round, dash: [8, 7]))
+                        ForEach(routeSegments(for: forecast)) { segment in
+                            MapPolyline(coordinates: [segment.start, segment.end])
+                                .stroke(
+                                    segment.color.opacity(0.82),
+                                    style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [5, 7])
+                                )
+                        }
                     }
                     if model.forecastHour > 0 {
                         ForEach(displayedParticles, id: \.offset) { item in
@@ -184,7 +189,7 @@ struct JellyMapView: View {
                 }
 
                 Annotation("", coordinate: track.coordinate(at: model.forecastHour)) {
-                    MainMapJellyfishMarker(risk: trackRisk)
+                    MainMapJellyfishMarker(risk: trackRisk, facesRight: jellyfishFacesRight(for: track))
                 }
             }
 
@@ -238,10 +243,8 @@ struct JellyMapView: View {
 
     private func bottomControls(bottomInset: CGFloat) -> some View {
         VStack(spacing: 0) {
-            if searchSheetDetent != Self.expandedSearchDetent {
-                MainMapFloatingControls(onNearMe: centerOnUserLocation, onCompare: presentComparison)
-                    .padding(.bottom, floatingControlsBottomPadding)
-            }
+            MainMapFloatingControls(onNearMe: centerOnUserLocation, onCompare: presentComparison)
+                .padding(.bottom, Self.collapsedSheetHeight + 12)
         }
     }
 
@@ -268,12 +271,6 @@ struct JellyMapView: View {
             onClear: clearSearch,
             onSelectBeach: selectSearchResult(_:)
         )
-    }
-
-    private var floatingControlsBottomPadding: CGFloat {
-        searchSheetDetent == Self.resultSearchDetent
-            ? Self.resultSearchHeight + 20
-            : Self.collapsedSheetHeight + 12
     }
 
     private func centerOnUserLocation() {
@@ -425,6 +422,53 @@ struct JellyMapView: View {
         return model.risk(for: nearestBeach)
     }
 
+    private func jellyfishFacesRight(for track: JellyfishTrack) -> Bool {
+        let current = track.coordinate(at: model.forecastHour)
+        let previousHour = max(model.forecastHour - 1, -24)
+        let previous = track.coordinate(at: previousHour)
+        let previousDelta = current.longitude - previous.longitude
+        if abs(previousDelta) > 0.000_01 { return previousDelta >= 0 }
+
+        let nextHour = min(model.forecastHour + 1, 24)
+        let next = track.coordinate(at: nextHour)
+        return next.longitude - current.longitude >= 0
+    }
+
+    private func forecastRoutePath(for track: JellyfishTrack) -> [CLLocationCoordinate2D] {
+        var path = [track.coordinate(at: 0)]
+        var sampleHour = 0.75
+        while sampleHour <= 24.000_1 {
+            path.append(track.coordinate(at: min(sampleHour, 24)))
+            sampleHour += 0.75
+        }
+        return path
+    }
+
+    private func routeSegments(for path: [CLLocationCoordinate2D]) -> [ForecastRouteSegment] {
+        guard path.count > 1 else { return [] }
+        return zip(path.dropLast(), path.dropFirst()).enumerated().map { index, pair in
+            let midpoint = CLLocationCoordinate2D(
+                latitude: (pair.0.latitude + pair.1.latitude) / 2,
+                longitude: (pair.0.longitude + pair.1.longitude) / 2
+            )
+            return ForecastRouteSegment(
+                index: index,
+                start: pair.0,
+                end: pair.1,
+                color: AppColor.risk(routeRisk(at: midpoint))
+            )
+        }
+    }
+
+    private func routeRisk(at coordinate: CLLocationCoordinate2D) -> RiskLevel {
+        guard let nearestBeach = model.beaches.min(by: {
+            model.distance(from: coordinate, to: $0.coordinate) < model.distance(from: coordinate, to: $1.coordinate)
+        }) else {
+            return .unknown
+        }
+        return displayRisk(for: nearestBeach)
+    }
+
     private static let collapsedSheetHeight: CGFloat = 126
     private static let collapsedSearchDetent = PresentationDetent.height(collapsedSheetHeight)
     private static let resultSearchHeight: CGFloat = 304
@@ -447,6 +491,15 @@ struct JellyMapView: View {
             height: abs(southWest.y - northEast.y)
         )
     }()
+}
+
+private struct ForecastRouteSegment: Identifiable {
+    let index: Int
+    let start: CLLocationCoordinate2D
+    let end: CLLocationCoordinate2D
+    let color: Color
+
+    var id: Int { index }
 }
 
 #Preview("Jelly Map") {

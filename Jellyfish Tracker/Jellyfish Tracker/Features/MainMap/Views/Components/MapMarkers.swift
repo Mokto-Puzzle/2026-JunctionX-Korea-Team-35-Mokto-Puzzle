@@ -72,12 +72,14 @@ extension Beach {
 
 struct MainMapJellyfishMarker: View {
     let risk: RiskLevel
+    let facesRight: Bool
 
     var body: some View {
         Image(assetName)
             .resizable()
             .scaledToFit()
             .frame(width: 68, height: 68)
+            .scaleEffect(x: facesRight ? 1 : -1, y: 1, anchor: .center)
             .shadow(color: AppColor.risk(risk).opacity(0.24), radius: 8)
     }
 
@@ -111,7 +113,7 @@ struct MainMapJellyfishMarker: View {
             showsRadius: false,
             temperature: nil
         )
-        MainMapJellyfishMarker(risk: .later)
+        MainMapJellyfishMarker(risk: .later, facesRight: false)
     }
     .padding()
     .background(AppColor.Preview.markerBackdrop)

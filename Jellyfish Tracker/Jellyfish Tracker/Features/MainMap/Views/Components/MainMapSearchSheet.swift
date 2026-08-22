@@ -189,7 +189,7 @@ struct MainMapSearchSheet: View {
     private var expandedSheetHeight: CGFloat { 550 + bottomInset }
     private var floatingSheetHorizontalInset: CGFloat { 6 }
     private var searchFieldFill: Color {
-        isSearchFocused ? AppColor.Fill.secondary : AppColor.Fill.translucentControl
+        AppColor.Fill.secondary
     }
 }
 

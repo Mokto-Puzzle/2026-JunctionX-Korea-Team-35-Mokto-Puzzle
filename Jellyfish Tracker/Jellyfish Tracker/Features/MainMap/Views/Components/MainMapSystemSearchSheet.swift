@@ -132,7 +132,7 @@ struct MainMapSystemSearchSheet: View {
     private var searchFieldTopGap: CGFloat { searchFieldTopFromSheet - 7 - 5 }
     private var searchFieldTopFromSheet: CGFloat { 41 }
     private var searchFieldFill: Color {
-        isSearchFocused ? AppColor.Fill.secondary : AppColor.Fill.translucentControl
+        AppColor.Fill.secondary
     }
 }
 
