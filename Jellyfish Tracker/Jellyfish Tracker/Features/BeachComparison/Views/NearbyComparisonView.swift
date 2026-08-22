@@ -150,19 +150,21 @@ private struct ComparisonBeachCard: View {
     }
 
     private var jellyfishIcon: some View {
-        Image("IconJellyfish")
-            .renderingMode(.template)
+        Image(assetName)
             .resizable()
             .scaledToFit()
-            .frame(width: 31, height: 31)
-            .foregroundStyle(AppColor.Text.white)
-            .padding(9)
-            .background(AppColor.risk(risk), in: .circle)
-            .overlay {
-                Circle()
-                    .stroke(iconHalo, lineWidth: 7)
-            }
             .frame(width: 55, height: 55)
+    }
+
+    private var assetName: String {
+        switch risk {
+        case .good, .unknown:
+            "JellyfishGood"
+        case .caution:
+            "JellyfishCaution"
+        case .later:
+            "JellyfishHigh"
+        }
     }
 
     private var cardFill: Color {
@@ -176,16 +178,6 @@ private struct ComparisonBeachCard: View {
         }
     }
 
-    private var iconHalo: Color {
-        switch risk {
-        case .good, .unknown:
-            AppColor.Fill.Comparison.goodIconHalo
-        case .caution:
-            AppColor.Fill.Comparison.cautionIconHalo
-        case .later:
-            AppColor.Fill.Comparison.highIconHalo
-        }
-    }
 }
 
 #Preview("Nearby Comparison") {

@@ -100,9 +100,6 @@ enum AppColor {
             static let goodCard = Primitive.Green.shade100.opacity(0.46)
             static let cautionCard = Primitive.Orange.shade100.opacity(0.45)
             static let highCard = Primitive.Red.shade100.opacity(0.42)
-            static let goodIconHalo = Primitive.Green.shade200.opacity(0.95)
-            static let cautionIconHalo = Primitive.Orange.shade200.opacity(0.95)
-            static let highIconHalo = Primitive.Red.shade200.opacity(0.95)
         }
     }
 

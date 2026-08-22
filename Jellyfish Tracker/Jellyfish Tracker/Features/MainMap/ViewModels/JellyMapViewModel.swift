@@ -29,8 +29,8 @@ final class JellyMapViewModel: ObservableObject {
     }
 
     static let fallbackRegion = MKCoordinateRegion(
-        center: LocationManager.fallback,
-        span: MKCoordinateSpan(latitudeDelta: 0.24, longitudeDelta: 0.20)
+        center: CLLocationCoordinate2D(latitude: 36.42, longitude: 129.43),
+        span: MKCoordinateSpan(latitudeDelta: 1.80, longitudeDelta: 0.95)
     )
 
     func load() async {

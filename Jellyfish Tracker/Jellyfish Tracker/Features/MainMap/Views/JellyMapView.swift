@@ -6,8 +6,8 @@ struct JellyMapView: View {
     @StateObject private var model: JellyMapViewModel
     @StateObject private var location = LocationManager()
     @State private var mapPosition: MapCameraPosition = .camera(MapCamera(
-        centerCoordinate: CLLocationCoordinate2D(latitude: 36.118, longitude: 129.392),
-        distance: 88_000,
+        centerCoordinate: CLLocationCoordinate2D(latitude: 36.42, longitude: 129.43),
+        distance: 175_000,
         heading: 0,
         pitch: 0
     ))
@@ -64,8 +64,13 @@ struct JellyMapView: View {
         }
         .onChange(of: location.coordinate.latitude) { _, _ in
             guard !location.isUsingFallback else { return }
-            model.focusNearby(location.coordinate)
-            mapPosition = model.position
+            if Self.gyeongbukMapRect.contains(MKMapPoint(location.coordinate)) {
+                model.focusNearby(location.coordinate)
+                mapPosition = model.position
+            } else {
+                model.position = Self.gyeongbukMapPosition
+                mapPosition = Self.gyeongbukMapPosition
+            }
         }
         .onChange(of: searchFocused) { _, focused in
             withAnimation(.snappy) {
@@ -114,7 +119,7 @@ struct JellyMapView: View {
     }
 
     private var map: some View {
-        return Map(initialPosition: Self.figmaMapPosition) {
+        return Map(position: $mapPosition, bounds: Self.gyeongbukCameraBounds) {
             UserAnnotation()
 
             ForEach(visibleMapBeaches) { beach in
@@ -135,7 +140,7 @@ struct JellyMapView: View {
                             usesMockRisk: model.recommendationUsesMockData(for: beach),
                             showsRadius: visualizeTemperature,
                             temperature: model.selectedLayers.contains(.temperature)
-                                ? model.annotated(String(format: "%.0f°C", beach.marine.waterTemperature), for: beach, fields: .waterTemperature)
+                                ? String(format: "%.0f°C", beach.marine.waterTemperature)
                                 : nil
                         )
                     }
@@ -144,19 +149,10 @@ struct JellyMapView: View {
                 }
             }
 
-            if model.selectedLayers.contains(.predictedPath) {
-                MapPolygon(coordinates: [
-                    CLLocationCoordinate2D(latitude: 36.104, longitude: 129.438),
-                    CLLocationCoordinate2D(latitude: 36.055, longitude: 129.392),
-                    CLLocationCoordinate2D(latitude: 36.027, longitude: 129.414)
-                ])
-                .foregroundStyle(AppColor.LegacyTracker.coral.opacity(0.16))
+            ForEach(model.tracks) { track in
+                let trackRisk = jellyfishRisk(for: track)
 
-                Annotation("", coordinate: CLLocationCoordinate2D(latitude: 36.104, longitude: 129.438)) {
-                    MainMapJellyfishMarker(status: nil, mock: false)
-                }
-
-                ForEach(model.tracks) { track in
+                if model.selectedLayers.contains(.predictedPath) {
                     let history = track.historyPath(at: model.forecastHour)
                     let forecast = track.forecastPath(at: model.forecastHour)
                     let displayedParticles = Array(track.particles(at: model.forecastHour).enumerated())
@@ -178,13 +174,11 @@ struct JellyMapView: View {
                     }
                     MapCircle(center: track.coordinate(at: model.forecastHour), radius: track.uncertaintyRadius(at: model.forecastHour))
                         .foregroundStyle(AppColor.LegacyTracker.coral.opacity(model.forecastHour == 0 ? 0.13 : 0.10))
-                        .stroke(AppColor.LegacyTracker.coral.opacity(0.36), lineWidth: 1)
-                    Annotation("", coordinate: track.coordinate(at: model.forecastHour)) {
-                        MainMapJellyfishMarker(
-                            status: track.originKind == .officialRegionEstimate ? "REGION EST." : nil,
-                            mock: track.provenance.quality == .mock
-                        )
-                    }
+                            .stroke(AppColor.LegacyTracker.coral.opacity(0.36), lineWidth: 1)
+                }
+
+                Annotation("", coordinate: track.coordinate(at: model.forecastHour)) {
+                    MainMapJellyfishMarker(risk: trackRisk)
                 }
             }
 
@@ -292,21 +286,9 @@ struct JellyMapView: View {
         BeachResultSummaryContent(
             beach: beach,
             risk: displayRisk(for: beach),
-            jellyfishText: model.annotated(
-                beach.recentJellyfish ? "\(beach.recentSightingsCount) recent" : "None",
-                for: beach,
-                fields: .jellyfishSightings
-            ),
-            currentText: model.annotated(
-                String(format: "%.2f m/s", beach.marine.currentSpeed),
-                for: beach,
-                fields: .current
-            ),
-            waterText: model.annotated(
-                String(format: "%.1f°C", beach.marine.waterTemperature),
-                for: beach,
-                fields: .waterTemperature
-            ),
+            jellyfishText: beach.recentJellyfish ? "\(beach.recentSightingsCount) recent" : "None",
+            currentText: String(format: "%.2f m/s", beach.marine.currentSpeed),
+            waterText: String(format: "%.1f°C", beach.marine.waterTemperature),
             usesMockRisk: model.recommendationUsesMockData(for: beach)
         )
     }
@@ -339,24 +321,19 @@ struct JellyMapView: View {
         }
     }
 
-    private static var figmaMapPosition: MapCameraPosition {
+    private static var gyeongbukMapPosition: MapCameraPosition {
         .camera(MapCamera(
-            centerCoordinate: CLLocationCoordinate2D(latitude: 36.118, longitude: 129.392),
-            distance: 88_000,
+            centerCoordinate: CLLocationCoordinate2D(latitude: 36.42, longitude: 129.43),
+            distance: 175_000,
             heading: 0,
             pitch: 0
         ))
     }
 
     private func focusInitialMap() {
-        if featuredBeach != nil {
-            model.position = .camera(MapCamera(
-                centerCoordinate: CLLocationCoordinate2D(latitude: 36.118, longitude: 129.392),
-                distance: 88_000,
-                heading: 0,
-                pitch: 0
-            ))
-            mapPosition = model.position
+        if location.isUsingFallback || !Self.gyeongbukMapRect.contains(MKMapPoint(location.coordinate)) {
+            model.position = Self.gyeongbukMapPosition
+            mapPosition = Self.gyeongbukMapPosition
         } else {
             model.focusNearby(location.coordinate)
             mapPosition = model.position
@@ -403,11 +380,36 @@ struct JellyMapView: View {
         mapPosition = model.position
     }
 
+    private func jellyfishRisk(for track: JellyfishTrack) -> RiskLevel {
+        let coordinate = track.coordinate(at: model.forecastHour)
+        guard let nearestBeach = model.beaches.min(by: {
+            model.distance(from: coordinate, to: $0.coordinate) < model.distance(from: coordinate, to: $1.coordinate)
+        }) else {
+            return .unknown
+        }
+        return model.risk(for: nearestBeach)
+    }
+
     private static let collapsedSheetHeight: CGFloat = 126
     private static let collapsedSearchDetent = PresentationDetent.height(collapsedSheetHeight)
     private static let resultSearchDetent = PresentationDetent.height(304)
     private static let expandedSearchDetent = PresentationDetent.height(550)
     private static let layerMenuTop: CGFloat = 246
+    private static let gyeongbukCameraBounds = MapCameraBounds(
+        centerCoordinateBounds: gyeongbukMapRect,
+        minimumDistance: 18_000,
+        maximumDistance: 260_000
+    )
+    private static let gyeongbukMapRect: MKMapRect = {
+        let southWest = MKMapPoint(CLLocationCoordinate2D(latitude: 35.45, longitude: 128.95))
+        let northEast = MKMapPoint(CLLocationCoordinate2D(latitude: 37.25, longitude: 129.90))
+        return MKMapRect(
+            x: min(southWest.x, northEast.x),
+            y: min(southWest.y, northEast.y),
+            width: abs(northEast.x - southWest.x),
+            height: abs(southWest.y - northEast.y)
+        )
+    }()
 }
 
 #Preview("Jelly Map") {
