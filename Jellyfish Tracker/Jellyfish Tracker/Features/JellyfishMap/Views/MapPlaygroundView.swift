@@ -11,6 +11,9 @@ struct MapPlaygroundView: View {
         )
     )
     @State private var isInspectorPresented = true
+    @State private var selectedMarineSample: MarineSample?
+
+    private let marineSamples = MarineSample.samples
 
     private var selectedLocation: JellyfishLocation? {
         state.locations.first { $0.id == state.selectedLocationID }
@@ -36,6 +39,12 @@ struct MapPlaygroundView: View {
                 if let selectedLocation {
                     SelectionCard(location: selectedLocation) {
                         state.selectedLocationID = nil
+                    }
+                }
+
+                if let selectedMarineSample {
+                    MarineDetailCard(sample: selectedMarineSample) {
+                        self.selectedMarineSample = nil
                     }
                 }
 
@@ -68,6 +77,80 @@ struct MapPlaygroundView: View {
 
     @MapContentBuilder
     private var mapContent: some MapContent {
+        if state.marineLayer == .temperature || state.marineLayer == .all {
+            ForEach(marineSamples) { sample in
+                MapCircle(center: sample.coordinate, radius: 15_000)
+                    .foregroundStyle(temperatureColor(sample.temperature).opacity(state.temperatureOpacity))
+            }
+        }
+
+        if state.marineLayer == .coastalRisk || state.marineLayer == .all {
+            MapPolyline(coordinates: coastalRiskLine)
+                .stroke(
+                    Gradient(colors: [.mint, .yellow, .orange, .red, .orange, .mint]),
+                    style: StrokeStyle(lineWidth: 14, lineCap: .round, lineJoin: .round)
+                )
+        }
+
+        if state.marineLayer == .forecast || state.marineLayer == .all {
+            MapPolyline(coordinates: forecastPath)
+                .stroke(.purple.opacity(0.9), style: StrokeStyle(lineWidth: 4, lineCap: .round, dash: [8, 7]))
+
+            if state.showsForecastUncertainty {
+                MapCircle(center: forecastCoordinate, radius: 5_000 + state.forecastHour * 650)
+                    .foregroundStyle(.purple.opacity(0.12))
+                    .stroke(.purple.opacity(0.65), style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+            }
+
+            Annotation("예상 위치", coordinate: forecastCoordinate) {
+                VStack(spacing: 4) {
+                    Image(systemName: "aqi.medium")
+                        .font(.title2.bold())
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background(.purple.gradient, in: Circle())
+                    if state.showsMarineValues {
+                        Text("+\(Int(state.forecastHour))시간")
+                            .font(.caption2.bold())
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(.regularMaterial, in: Capsule())
+                    }
+                }
+            }
+        }
+
+        if state.marineLayer == .current || state.marineLayer == .all {
+            ForEach(Array(visibleCurrentSamples.enumerated()), id: \.element.id) { index, sample in
+                Annotation("", coordinate: sample.coordinate) {
+                    Button {
+                        selectedMarineSample = sample
+                    } label: {
+                        CurrentMarker(
+                            sample: sample,
+                            scale: state.currentScale,
+                            showsValue: state.showsMarineValues,
+                            phase: index
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+
+        if state.marineLayer == .wave || state.marineLayer == .all {
+            ForEach(marineSamples) { sample in
+                Annotation("", coordinate: shifted(sample.coordinate, longitude: -0.035)) {
+                    Button {
+                        selectedMarineSample = sample
+                    } label: {
+                        WaveMarker(sample: sample, showsValue: state.showsMarineValues)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+
         if state.overlayMode == .risk || state.overlayMode == .all {
             MapPolygon(coordinates: riskPolygon)
                 .foregroundStyle(.red.opacity(state.overlayOpacity))
@@ -124,6 +207,143 @@ struct MapPlaygroundView: View {
             .init(latitude: 36.39, longitude: 129.44),
             .init(latitude: 36.27, longitude: 129.47)
         ]
+    }
+
+    private var visibleCurrentSamples: [MarineSample] {
+        switch state.currentDensity {
+        case 0: return Array(marineSamples.prefix(3))
+        case 1: return marineSamples.enumerated().compactMap { $0.offset.isMultiple(of: 2) ? $0.element : nil }
+        default: return marineSamples
+        }
+    }
+
+    private var coastalRiskLine: [CLLocationCoordinate2D] {
+        state.locations.map { shifted($0.coordinate, longitude: 0.025) }
+    }
+
+    private var forecastPath: [CLLocationCoordinate2D] {
+        let origin = CLLocationCoordinate2D(latitude: 36.29, longitude: 129.46)
+        return stride(from: 0.0, through: state.forecastHour, by: 3).map { hour in
+            .init(latitude: origin.latitude + hour * 0.012, longitude: origin.longitude + hour * 0.006)
+        } + [forecastCoordinate]
+    }
+
+    private var forecastCoordinate: CLLocationCoordinate2D {
+        .init(latitude: 36.29 + state.forecastHour * 0.012, longitude: 129.46 + state.forecastHour * 0.006)
+    }
+
+    private func shifted(_ coordinate: CLLocationCoordinate2D, longitude: Double) -> CLLocationCoordinate2D {
+        .init(latitude: coordinate.latitude, longitude: coordinate.longitude + longitude)
+    }
+
+    private func temperatureColor(_ temperature: Double) -> Color {
+        switch state.marinePalette {
+        case .thermal:
+            if temperature < 24.8 { return .blue }
+            if temperature < 26 { return .cyan }
+            if temperature < 27 { return .yellow }
+            return .red
+        case .ocean:
+            if temperature < 24.8 { return .indigo }
+            if temperature < 26 { return .blue }
+            if temperature < 27 { return .cyan }
+            return .mint
+        case .risk:
+            if temperature < 24.8 { return .mint }
+            if temperature < 26 { return .yellow }
+            if temperature < 27 { return .orange }
+            return .red
+        }
+    }
+}
+
+private struct CurrentMarker: View {
+    let sample: MarineSample
+    let scale: Double
+    let showsValue: Bool
+    let phase: Int
+
+    @State private var pulses = false
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Image(systemName: "location.north.fill")
+                .font(.system(size: 15 + sample.currentSpeed * 12, weight: .bold))
+                .foregroundStyle(currentColor)
+                .rotationEffect(.degrees(sample.currentDirection))
+                .scaleEffect(pulses ? 1.12 : 0.88)
+                .shadow(color: .white, radius: 2)
+            if showsValue {
+                Text(String(format: "%.1f m/s", sample.currentSpeed))
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(.regularMaterial, in: Capsule())
+            }
+        }
+        .scaleEffect(scale)
+        .task {
+            try? await Task.sleep(for: .milliseconds(phase * 90))
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                pulses = true
+            }
+        }
+    }
+
+    private var currentColor: Color {
+        if sample.currentSpeed < 0.5 { return .cyan }
+        if sample.currentSpeed < 0.9 { return .blue }
+        return .purple
+    }
+}
+
+private struct WaveMarker: View {
+    let sample: MarineSample
+    let showsValue: Bool
+
+    var body: some View {
+        VStack(spacing: 1) {
+            Image(systemName: "water.waves")
+                .font(.system(size: 13 + sample.waveHeight * 7, weight: .semibold))
+                .foregroundStyle(sample.waveHeight >= 1.5 ? .orange : .blue)
+                .shadow(color: .white, radius: 2)
+            if showsValue {
+                Text(String(format: "%.1fm", sample.waveHeight))
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+            }
+        }
+    }
+}
+
+private struct MarineDetailCard: View {
+    let sample: MarineSample
+    let close: () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "water.waves.and.arrow.trianglehead.up")
+                .font(.title2)
+                .foregroundStyle(.white)
+                .frame(width: 46, height: 46)
+                .background(.blue.gradient, in: Circle())
+            VStack(alignment: .leading, spacing: 5) {
+                Text("해양 관측 샘플").font(.headline)
+                HStack(spacing: 12) {
+                    Label(String(format: "%.1f°C", sample.temperature), systemImage: "thermometer.medium")
+                    Label(String(format: "%.1fm", sample.waveHeight), systemImage: "water.waves")
+                    Label(String(format: "%.1fm/s", sample.currentSpeed), systemImage: "location.north.fill")
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("닫기", systemImage: "xmark", action: close)
+                .labelStyle(.iconOnly)
+                .buttonStyle(.glass)
+        }
+        .padding(12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22))
+        .padding(.top, 8)
     }
 }
 
@@ -236,6 +456,51 @@ private struct MapInspectorView: View {
                         .disabled(state.baseStyle == .imagery)
                     Toggle("교통 정보", isOn: $state.showsTraffic)
                         .disabled(state.baseStyle == .imagery)
+                    Toggle("바다 정보 강조", isOn: $state.emphasizesOcean)
+                }
+
+                Section("해양 데이터 · 디자인용 샘플") {
+                    Picker("레이어", selection: $state.marineLayer) {
+                        ForEach(MapPlaygroundState.MarineLayer.allCases) { layer in
+                            Text(layer.rawValue).tag(layer)
+                        }
+                    }
+
+                    Picker("색상", selection: $state.marinePalette) {
+                        ForEach(MapPlaygroundState.MarinePalette.allCases) { palette in
+                            Text(palette.rawValue).tag(palette)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Toggle("수치 표시", isOn: $state.showsMarineValues)
+                    Toggle("예측 오차 범위", isOn: $state.showsForecastUncertainty)
+
+                    LabeledContent("예측 시간", value: "+\(Int(state.forecastHour))시간")
+                    Slider(value: $state.forecastHour, in: 0...12, step: 3) {
+                        Text("예측 시간")
+                    } minimumValueLabel: {
+                        Text("현재").font(.caption2)
+                    } maximumValueLabel: {
+                        Text("12h").font(.caption2)
+                    }
+
+                    LabeledContent("수온 투명도") {
+                        Slider(value: $state.temperatureOpacity, in: 0.1...0.75)
+                            .frame(maxWidth: 190)
+                    }
+
+                    Picker("해류 밀도", selection: $state.currentDensity) {
+                        Text("낮음").tag(0)
+                        Text("보통").tag(1)
+                        Text("높음").tag(2)
+                    }
+                    .pickerStyle(.segmented)
+
+                    LabeledContent("해류 크기") {
+                        Slider(value: $state.currentScale, in: 0.65...1.6)
+                            .frame(maxWidth: 190)
+                    }
                 }
 
                 Section("데이터 오버레이") {
