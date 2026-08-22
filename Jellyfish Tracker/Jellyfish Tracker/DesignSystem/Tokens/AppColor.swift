@@ -77,6 +77,7 @@ enum AppColor {
         static let searchSheetSurface = Primitive.Common.shade000.opacity(0.74)
         static let filterPanelSurface = Primitive.Common.shade000.opacity(0.64)
         static let transparentOverlay = Primitive.Common.shade900.opacity(0)
+        static let screenBackground = Primitive.Common.shade050
 
         enum OnMap {
             static let red = color(red: 1, green: 0.1333333403, blue: 0, opacity: 0.2000000029)
@@ -93,6 +94,15 @@ enum AppColor {
             static let normalStrong = Primitive.Common.shade000.opacity(0.72)
             static let normalRaised = Primitive.Common.shade000.opacity(0.74)
             static let border = Primitive.Common.shade000.opacity(0.68)
+        }
+
+        enum Comparison {
+            static let goodCard = Primitive.Green.shade100.opacity(0.46)
+            static let cautionCard = Primitive.Orange.shade100.opacity(0.45)
+            static let highCard = Primitive.Red.shade100.opacity(0.42)
+            static let goodIconHalo = Primitive.Green.shade200.opacity(0.95)
+            static let cautionIconHalo = Primitive.Orange.shade200.opacity(0.95)
+            static let highIconHalo = Primitive.Red.shade200.opacity(0.95)
         }
     }
 
@@ -151,17 +161,6 @@ enum AppColor {
         static let cream = Primitive.Orange.shade050
         static let coral = Primitive.Red.shade400
         static let seafoam = Primitive.Green.shade600
-    }
-
-    enum Prototype {
-        static let mint = Primitive.Green.shade600
-        static let yellow = Primitive.Yellow.shade500
-        static let orange = Primitive.Orange.shade500
-        static let red = Primitive.Red.shade500
-        static let purple = Primitive.Purple.shade500
-        static let cyan = Primitive.Cyan.shade500
-        static let blue = Primitive.Blue.shade500
-        static let indigo = Primitive.Indigo.shade500
     }
 
     static func risk(_ risk: RiskLevel) -> Color {
