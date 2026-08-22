@@ -85,28 +85,6 @@ estimate with spatial uncertainty, not an exact observation.
 | Minjae Kwon (권민재) | Planning, Development |
 | Subin Won (원수빈) | Planning, Design |
 
-## Project Status
-
-The JunctionX demo build is operational. It includes the MapKit experience,
-nearby beach recommendation and comparison, timeline playback, data layers,
-beach detail summaries, live-data adapters, and the particle-based jellyfish
-movement model. The current Figma file is the final UI design baseline; model
-work must integrate without overriding UI decisions on `develop`.
-
-The model keeps particle identity through time, applies coastline collision to
-every 30-minute integration segment, retains beached particles at their first
-coastal contact, and renders a simplified route only when the complete shortcut
-segment remains over water. This prevents a valid offshore marker from being
-connected by an impossible line across a peninsula.
-
-Verification as of 2026-08-23:
-
-- Official KHOA tidal-current API returned live Gyeongsangbuk-do grid data
-- Debug simulator build succeeded
-- Parser and water-continuity regression tests are included
-- The latest automated test launch was blocked by the local `xcrun/simctl`
-  environment; this was a runner issue after successful compilation
-
 ## References
 
 - [Jellyfish surge hurts Gyeongsangbuk-do beaches and fisheries (Newsis, 2024-08-25)](https://www.newsis.com/view/NISX20240825_0002861544)
@@ -202,32 +180,9 @@ NIFS 공개 자료는 정확한 원시 신고 좌표가 아니라 지역 분포�
 | 권민재 | 기획, 개발 |
 | 원수빈 | 기획, 디자인 |
 
-## 프로젝트 상태
-
-JunctionX 데모 빌드는 동작 가능한 상태입니다. MapKit 지도, 주변 해수욕장
-추천·비교, 타임라인, 데이터 레이어, 상세 요약, 실데이터 어댑터와 입자 기반
-이동 모델이 구현되어 있습니다. 현재 Figma 파일을 최종 UI 기준으로 사용하며,
-모델 통합 과정에서는 `develop`의 UI 결정을 우선합니다.
-
-입자는 동일 ID로 시간대 전체를 추적하고, 30분 적분 구간마다 해안 충돌을
-검사합니다. 육지에 닿은 입자는 최초 접촉 지점에 정착합니다. 표시 경로를
-큼직하게 단순화할 때도 두 점 사이 전체가 바다인 경우에만 연결하여 반도나
-육지를 가로지르는 선을 만들지 않습니다.
-
-2026-08-23 기준 공식 수치조류 API 실응답과 Debug 빌드를 확인했습니다. 관련
-파서·해상 연속성 회귀 테스트 코드도 포함되어 있습니다. 마지막 자동 테스트
-실행은 컴파일 이후 로컬 `xcrun/simctl` 환경 문제로 러너가 시작되지 못했습니다.
-
 ## 참고 자료
 
 - [경북 동해안 해파리 급증에 따른 해수욕장·어가 피해 (뉴시스, 2024-08-25)](https://www.newsis.com/view/NISX20240825_0002861544)
 - [남해에서 경북 동해안까지 확산된 해파리 피해 (경향신문, 2025-07-29)](https://v.daum.net/v/20250729133129561)
 - [계속되는 해파리 위험에 대비하는 경북 동해안 해수욕장 (매일신문, 2026-06-17)](https://v.daum.net/v/20260617181257739)
 - [경북소방본부 여름철 해파리 쏘임 사고 안전수칙 (2026-07-15)](https://inseri.gb.go.kr/Main/page.do?BD_CODE=bbs_bodo&B_LEVEL=0&B_NUM=510115901&B_STEP=510115900&Start=0&V_NUM=14579&bdName=&cmd=2&dept_code=&dept_name=&key=4&mnu_uid=6792&p1=0&p2=0&tbbscode1=bbs_bodo&word=)
-
-# Local API configuration
-
-For local demos, copy `Jellyfish Tracker/Jellyfish Tracker/Resources/APIKeys.example.plist`
-to `APIKeys.plist` in the same directory and replace the placeholder values. The
-real file is ignored by Git. Treat a built app as containing those credentials;
-production deployments should call protected public-data APIs through a server proxy.

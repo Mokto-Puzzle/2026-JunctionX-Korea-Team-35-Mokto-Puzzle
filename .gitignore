@@ -37,6 +37,9 @@ playground.xcworkspace
 # Local API credentials (bundled automatically by Xcode's synchronized group)
 APIKeys.plist
 
+# Local development specification
+FEATURE_LIST.md
+
 # CocoaPods
 #
 # We recommend against adding the Pods directory to your .gitignore. However
