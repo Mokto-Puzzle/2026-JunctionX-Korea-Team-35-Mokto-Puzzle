@@ -929,7 +929,7 @@ private enum NetworkLoader {
 }
 
 private enum JSONWalker {
-    static func dictionaries(in object: Any) -> [[String: Any]] {
+    nonisolated static func dictionaries(in object: Any) -> [[String: Any]] {
         if let dictionary = object as? [String: Any] {
             return [dictionary] + dictionary.values.flatMap(dictionaries)
         }

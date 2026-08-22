@@ -1,14 +1,14 @@
 import SwiftUI
 
 extension Color {
-    static let jellyMint = Color(red: 0, green: 0.80, blue: 0.69)
-    static let jellyInk = Color(red: 0.08, green: 0.12, blue: 0.11)
-    static let jellyCaption = Color(red: 0.45, green: 0.55, blue: 0.53)
-    static let jellyCoral = Color(red: 1.0, green: 0.32, blue: 0.26)
+    static let jellyMint = AppColor.Fill.Button.accent
+    static let jellyInk = AppColor.Text.normal
+    static let jellyCaption = AppColor.Text.caption
+    static let jellyCoral = AppColor.Primitive.Red.shade400
 
     static let ocean = trackerCyan
     static let seafoam = Color(red: 0.22, green: 0.84, blue: 0.68)
-    static let cautionOrange = Color(red: 1.0, green: 0.62, blue: 0.16)
+    static let cautionOrange = AppColor.Primitive.Orange.shade500
     static let warmSun = trackerCream
 
     static func risk(_ risk: RiskLevel) -> Color {

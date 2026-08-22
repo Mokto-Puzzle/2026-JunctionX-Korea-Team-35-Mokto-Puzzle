@@ -21,10 +21,11 @@ final class JellyMapViewModel: ObservableObject {
     @Published var predictionUsesEstimatedOrigin = false
 
     private let provider: OceanDataProviding
-    init(provider: OceanDataProviding = OceanDataProviderFactory.make()) {
-        self.provider = provider
-        dataSourceLabel = provider.sourceLabel
-        predictionUsesMockData = provider.predictionUsesMockData
+    init(provider: OceanDataProviding? = nil) {
+        let resolvedProvider = provider ?? OceanDataProviderFactory.make()
+        self.provider = resolvedProvider
+        dataSourceLabel = resolvedProvider.sourceLabel
+        predictionUsesMockData = resolvedProvider.predictionUsesMockData
     }
 
     static let fallbackRegion = MKCoordinateRegion(
