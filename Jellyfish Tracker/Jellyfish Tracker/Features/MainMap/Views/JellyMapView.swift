@@ -104,7 +104,16 @@ struct JellyMapView: View {
         }
         .onChange(of: showComparison) { _, isPresented in
             guard !isPresented else { return }
-            collapseSearchSheet(clearSelection: true)
+            if let selected = model.selectedBeach {
+                model.searchText = selected.searchDisplayName
+                mapPosition = model.position
+                searchFocused = false
+                searchExpanded = false
+                resultSheetExpanded = true
+                searchSheetDetent = Self.resultSearchDetent
+            } else {
+                collapseSearchSheet(clearSelection: true)
+            }
         }
         .sheet(isPresented: $searchSheetPresented) {
             systemSearchSheet

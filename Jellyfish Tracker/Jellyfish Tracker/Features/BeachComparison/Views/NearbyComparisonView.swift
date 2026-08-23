@@ -77,7 +77,10 @@ struct NearbyComparisonView: View {
                         beach: beach,
                         risk: model.risk(for: beach),
                         summary: summary(for: beach),
-                        onDisclosureTap: {}
+                        onDisclosureTap: {
+                            model.focus(on: beach)
+                            dismiss()
+                        }
                     )
                 }
             }
@@ -108,25 +111,25 @@ private struct ComparisonBeachCard: View {
     let onDisclosureTap: () -> Void
 
     var body: some View {
-        HStack(spacing: 16) {
-            jellyfishIcon
+        Button(action: onDisclosureTap) {
+            HStack(spacing: 16) {
+                jellyfishIcon
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(beach.displayName)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(AppColor.Text.normal)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-                Text(summary)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(AppColor.Text.secondary)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(beach.displayName)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(AppColor.Text.normal)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                    Text(summary)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(AppColor.Text.secondary)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            Spacer(minLength: 8)
+                Spacer(minLength: 8)
 
-            Button(action: onDisclosureTap) {
                 Image("IconChevronRight")
                     .renderingMode(.template)
                     .resizable()
@@ -135,9 +138,9 @@ private struct ComparisonBeachCard: View {
                     .foregroundStyle(AppColor.Icon.secondary)
                     .frame(width: 32, height: 44)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open beach detail")
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open \(beach.displayName) detail")
         .padding(.leading, 14)
         .padding(.trailing, 9)
         .frame(maxWidth: .infinity, minHeight: 118, alignment: .center)
