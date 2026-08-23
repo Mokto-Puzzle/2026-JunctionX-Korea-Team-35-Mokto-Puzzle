@@ -32,13 +32,10 @@ struct BeachPin: View {
             }
             .frame(width: 91, height: 91)
             .background(showsRadius ? radiusFill : .clear, in: .circle)
-            .overlay {
-                if selected {
-                    Circle().stroke(AppColor.risk(risk).opacity(0.55), lineWidth: 2)
-                }
-            }
         }
         .frame(width: 91)
+        .scaleEffect(selected ? 1.12 : 1)
+        .animation(.spring(response: 0.28, dampingFraction: 0.72), value: selected)
     }
 
     private var shortName: String {
@@ -80,18 +77,11 @@ struct MainMapJellyfishMarker: View {
             .scaledToFit()
             .frame(width: 68, height: 68)
             .scaleEffect(x: facesRight ? 1 : -1, y: 1, anchor: .center)
-            .shadow(color: AppColor.risk(risk).opacity(0.24), radius: 8)
+            .shadow(color: AppColor.risk(.later).opacity(0.24), radius: 8)
     }
 
     private var assetName: String {
-        switch risk {
-        case .good, .unknown:
-            "JellyfishGood"
-        case .caution:
-            "JellyfishCaution"
-        case .later:
-            "JellyfishHigh"
-        }
+        "JellyfishHigh"
     }
 }
 

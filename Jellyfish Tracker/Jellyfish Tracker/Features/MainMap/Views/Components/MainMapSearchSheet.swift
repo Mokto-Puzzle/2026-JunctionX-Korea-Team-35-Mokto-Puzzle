@@ -244,19 +244,7 @@ private struct ResultRiskBadge: View {
     let usesMockRisk: Bool
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image("IconJellyfish")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 18, height: 18)
-            Text(risk.shortTitle.uppercased() + (usesMockRisk ? "" : ""))
-                .font(.custom("Helvetica", size: 12, relativeTo: .caption))
-        }
-        .foregroundStyle(AppColor.Text.accent)
-        .padding(.horizontal, 12)
-        .frame(height: 34)
-        .background(AppColor.Primitive.Green.shade100.opacity(0.72), in: .capsule)
+        RiskStatusChip(risk: risk)
     }
 }
 

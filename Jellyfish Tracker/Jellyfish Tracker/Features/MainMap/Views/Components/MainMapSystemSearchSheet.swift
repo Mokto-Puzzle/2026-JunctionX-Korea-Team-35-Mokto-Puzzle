@@ -159,12 +159,13 @@ private struct BeachCollapsedPreview: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(content.risk.shortTitle.uppercased())
-                .font(.custom("Helvetica", size: 12, relativeTo: .caption))
-                .foregroundStyle(AppColor.risk(content.risk))
-                .padding(.horizontal, 10)
-                .frame(height: 28)
-                .background(AppColor.risk(content.risk).opacity(0.18), in: .capsule)
+            RiskStatusChip(
+                risk: content.risk,
+                height: 28,
+                iconSize: 15,
+                fontSize: 12,
+                horizontalPadding: 10
+            )
 
             Text(content.beach.displayName)
                 .font(.custom("Helvetica-Bold", size: 16, relativeTo: .subheadline))

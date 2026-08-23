@@ -57,6 +57,7 @@ struct JellyMapView: View {
                         .padding(.bottom, sheetBeach == nil ? 112 : 220)
                 }
             }
+            .animation(.snappy, value: showLayerMenu)
         }
         .task {
             await model.load()
@@ -79,9 +80,7 @@ struct JellyMapView: View {
                 resultSheetExpanded = focused || resultSheetExpanded || searchSheetDetent != Self.collapsedSearchDetent
                 if focused {
                     showLayerMenu = false
-                    if searchSheetDetent == Self.collapsedSearchDetent {
-                        searchSheetDetent = Self.resultSearchDetent
-                    }
+                    searchSheetDetent = Self.expandedSearchDetent
                 }
             }
         }
@@ -102,17 +101,27 @@ struct JellyMapView: View {
         .fullScreenCover(isPresented: $showComparison, onDismiss: restoreAfterComparison) {
             NearbyComparisonView(model: model, userCoordinate: location.coordinate)
         }
+        .onChange(of: model.searchText) { _, newValue in
+            guard searchFocused else { return }
+            if let selected = model.selectedBeach, newValue != selected.searchDisplayName {
+                model.selectedBeach = nil
+                model.focusedBeach = nil
+            }
+            withAnimation(.snappy) {
+                searchExpanded = true
+                resultSheetExpanded = true
+                searchSheetDetent = Self.expandedSearchDetent
+            }
+        }
         .sheet(isPresented: $searchSheetPresented) {
             systemSearchSheet
                 .presentationDetents(
-                    searchFocused
-                        ? [Self.collapsedSearchDetent, Self.resultSearchDetent]
-                        : [Self.collapsedSearchDetent, Self.resultSearchDetent, Self.expandedSearchDetent],
+                    [Self.collapsedSearchDetent, Self.resultSearchDetent, Self.expandedSearchDetent],
                     selection: $searchSheetDetent
                 )
                 .presentationDragIndicator(.hidden)
                 .presentationCornerRadius(38)
-                .presentationBackground(AppColor.Fill.searchSheetSurface)
+                .presentationBackground(.clear)
                 .presentationBackgroundInteraction(.enabled(upThrough: Self.collapsedSearchDetent))
                 .presentationContentInteraction(.resizes)
                 .interactiveDismissDisabled()
@@ -365,9 +374,7 @@ struct JellyMapView: View {
     }
 
     private var sheetBeach: Beach? {
-        if let selected = model.selectedBeach { return selected }
-        guard !model.searchText.isEmpty else { return nil }
-        return model.filteredBeaches.first
+        model.selectedBeach
     }
 
     private var featuredBeach: Beach? {
@@ -436,7 +443,7 @@ struct JellyMapView: View {
     }
 
     private func shouldFocusSearch(for detent: PresentationDetent) -> Bool {
-        detent == Self.resultSearchDetent
+        detent == Self.expandedSearchDetent
             && model.searchText.isEmpty
             && model.selectedBeach == nil
     }
