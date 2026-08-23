@@ -179,14 +179,14 @@ struct JellyMapView: View {
                             )
                     }
                     if forecast.count > 1 {
-                        ForEach(routeSegments(for: forecast)) { segment in
-                            MapPolyline(coordinates: [segment.start, segment.end])
+                        ForEach(forecastRouteRuns(for: forecast)) { run in
+                            MapPolyline(coordinates: run.coordinates)
                                 .stroke(
-                                    segment.color.opacity(0.82),
+                                    run.color.opacity(0.82),
                                     style: StrokeStyle(
                                         lineWidth: routeLineWidth,
                                         lineCap: .round,
-                                        dash: forecastRouteDashPattern
+                                        dash: routeDashPattern
                                     )
                                 )
                         }
@@ -461,29 +461,17 @@ struct JellyMapView: View {
         track.forecastPath(at: 24, sampleIntervalHours: routeSampleStepHours)
     }
 
-    private func routeSegments(for path: [CLLocationCoordinate2D]) -> [ForecastRouteSegment] {
+    private func forecastRouteRuns(for path: [CLLocationCoordinate2D]) -> [ForecastRouteRun] {
         guard path.count > 1 else { return [] }
-        return zip(path.dropLast(), path.dropFirst()).enumerated().map { index, pair in
-            let midpoint = CLLocationCoordinate2D(
-                latitude: (pair.0.latitude + pair.1.latitude) / 2,
-                longitude: (pair.0.longitude + pair.1.longitude) / 2
-            )
-            return ForecastRouteSegment(
-                index: index,
-                start: pair.0,
-                end: pair.1,
-                color: AppColor.risk(routeRisk(at: midpoint))
-            )
-        }
-    }
-
-    private func routeRisk(at coordinate: CLLocationCoordinate2D) -> RiskLevel {
-        guard let nearestBeach = model.beaches.min(by: {
-            model.distance(from: coordinate, to: $0.coordinate) < model.distance(from: coordinate, to: $1.coordinate)
-        }) else {
-            return .unknown
-        }
-        return displayRisk(for: nearestBeach)
+        // Draw a small number of continuous polylines. Rendering every integration
+        // segment separately restarted the dash phase and made the route look solid.
+        let split = max(min(path.count / 2, path.count - 1), 1)
+        let nearTerm = Array(path[0...split])
+        let longerTerm = Array(path[split...])
+        return [
+            ForecastRouteRun(id: "near", coordinates: nearTerm, color: AppColor.risk(.caution)),
+            ForecastRouteRun(id: "long", coordinates: longerTerm, color: AppColor.risk(.later))
+        ].filter { $0.coordinates.count > 1 }
     }
 
     private var routeSampleStepHours: Double {
@@ -509,21 +497,6 @@ struct JellyMapView: View {
             [7, 14]
         default:
             [8, 18]
-        }
-    }
-
-    /// Forecast is a directional guide, so use fewer, larger dashes than the
-    /// integration cadence. The underlying 30-minute particle path is unchanged.
-    private var forecastRouteDashPattern: [CGFloat] {
-        switch mapCameraDistance {
-        case ..<45_000:
-            [10, 16]
-        case ..<110_000:
-            [12, 20]
-        case ..<190_000:
-            [14, 24]
-        default:
-            [16, 28]
         }
     }
 
@@ -562,13 +535,10 @@ struct JellyMapView: View {
     }()
 }
 
-private struct ForecastRouteSegment: Identifiable {
-    let index: Int
-    let start: CLLocationCoordinate2D
-    let end: CLLocationCoordinate2D
+private struct ForecastRouteRun: Identifiable {
+    let id: String
+    let coordinates: [CLLocationCoordinate2D]
     let color: Color
-
-    var id: Int { index }
 }
 
 #Preview("Jelly Map") {

@@ -244,14 +244,14 @@ final class JellyMapViewModel: ObservableObject {
         // body evaluations a dictionary lookup.
         let key = ImpactCacheKey(
             beachID: beach.id,
-            halfHour: Int((forecastHour * 2).rounded())
+            hour: Int(forecastHour.rounded())
         )
         if let cached = impactCache[key] { return cached.probability }
 
         let influenceRadius = 5_000.0
         var noImpactProbability = 1.0
         var contributingTrackCount = 0
-        let evaluationHour = Double(key.halfHour) / 2
+        let evaluationHour = Double(key.hour)
         for track in tracks {
             guard let trackProbability = track.entryFraction(
                 near: beach.coordinate,
@@ -337,7 +337,7 @@ final class JellyMapViewModel: ObservableObject {
 
     private struct ImpactCacheKey: Hashable {
         let beachID: String
-        let halfHour: Int
+        let hour: Int
     }
 
     private enum ImpactCacheValue {
