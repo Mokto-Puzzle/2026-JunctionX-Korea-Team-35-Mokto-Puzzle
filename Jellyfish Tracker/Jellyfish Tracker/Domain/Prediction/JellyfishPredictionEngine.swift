@@ -41,33 +41,58 @@ struct OceanFieldSample: Hashable {
     }
 }
 
+enum OceanFieldTemporalPolicy {
+    case strict
+    case boundedPersistence(validHours: ClosedRange<Double>)
+}
+
 /// Interpolates the ocean state at every particle coordinate and forecast time.
 struct SpatiotemporalOceanField {
     let samples: [OceanFieldSample]
     let maximumSpatialExtrapolationMeters: Double
+    private let isTemporallyConstant: Bool
+    private let temporalPolicy: OceanFieldTemporalPolicy
 
-    init(samples: [OceanFieldSample], maximumSpatialExtrapolationMeters: Double = 120_000) {
+    init(
+        samples: [OceanFieldSample],
+        maximumSpatialExtrapolationMeters: Double = 120_000,
+        temporalPolicy: OceanFieldTemporalPolicy = .strict
+    ) {
         self.samples = samples
         self.maximumSpatialExtrapolationMeters = maximumSpatialExtrapolationMeters
+        isTemporallyConstant = false
+        self.temporalPolicy = temporalPolicy
     }
 
     init(constant forcing: OceanForcing, around coordinate: CLLocationCoordinate2D) {
-        self.init(
-            samples: [.init(coordinate: coordinate, hour: 0, forcing: forcing)],
-            maximumSpatialExtrapolationMeters: .greatestFiniteMagnitude
-        )
+        samples = [.init(coordinate: coordinate, hour: 0, forcing: forcing)]
+        maximumSpatialExtrapolationMeters = .greatestFiniteMagnitude
+        isTemporallyConstant = true
+        temporalPolicy = .strict
     }
 
     func forcing(at coordinate: CLLocationCoordinate2D, hour: Double) -> OceanForcing? {
         guard !samples.isEmpty else { return nil }
         let hours = Array(Set(samples.map(\.hour))).sorted()
         guard let first = hours.first, let last = hours.last else { return nil }
-        let lowerHour = hours.last(where: { $0 <= hour }) ?? first
-        let upperHour = hours.first(where: { $0 >= hour }) ?? last
+        if isTemporallyConstant {
+            return spatialForcing(at: coordinate, hour: first)
+        }
+        switch temporalPolicy {
+        case .strict:
+            guard hour >= first, hour <= last else { return nil }
+        case let .boundedPersistence(validHours):
+            guard validHours.contains(hour) else { return nil }
+            if hour <= first { return spatialForcing(at: coordinate, hour: first) }
+            if hour >= last { return spatialForcing(at: coordinate, hour: last) }
+        }
+
+        guard let lowerHour = hours.last(where: { $0 <= hour }),
+              let upperHour = hours.first(where: { $0 >= hour }) else { return nil }
         guard let lower = spatialForcing(at: coordinate, hour: lowerHour) else { return nil }
-        guard lowerHour != upperHour,
-              let upper = spatialForcing(at: coordinate, hour: upperHour) else { return lower }
-        let fraction = min(max((hour - lowerHour) / (upperHour - lowerHour), 0), 1)
+        guard lowerHour != upperHour else { return lower }
+        guard let upper = spatialForcing(at: coordinate, hour: upperHour) else { return nil }
+        let fraction = (hour - lowerHour) / (upperHour - lowerHour)
         return Self.weighted([lower, upper], weights: [1 - fraction, fraction])
     }
 
@@ -88,18 +113,26 @@ struct SpatiotemporalOceanField {
         func scalar(_ keyPath: KeyPath<OceanForcing, Double>) -> Double {
             zip(values, weights).reduce(0) { $0 + $1.0[keyPath: keyPath] * $1.1 }
         }
-        func direction(_ keyPath: KeyPath<OceanForcing, Double>) -> Double {
+        func vector(
+            direction directionKeyPath: KeyPath<OceanForcing, Double>,
+            speed speedKeyPath: KeyPath<OceanForcing, Double>
+        ) -> (direction: Double, speed: Double) {
             let vector = zip(values, weights).reduce(into: (east: 0.0, north: 0.0)) { result, item in
-                let radians = item.0[keyPath: keyPath] * .pi / 180
-                result.east += sin(radians) * item.1
-                result.north += cos(radians) * item.1
+                let radians = item.0[keyPath: directionKeyPath] * .pi / 180
+                let weightedSpeed = item.0[keyPath: speedKeyPath] * item.1
+                result.east += sin(radians) * weightedSpeed
+                result.north += cos(radians) * weightedSpeed
             }
+            let speed = hypot(vector.east, vector.north)
+            guard speed > 1e-12 else { return (direction: 0, speed: 0) }
             let degrees = atan2(vector.east, vector.north) * 180 / .pi
-            return degrees >= 0 ? degrees : degrees + 360
+            return (direction: degrees >= 0 ? degrees : degrees + 360, speed: speed)
         }
+        let current = vector(direction: \.currentDirection, speed: \.currentSpeed)
+        let wind = vector(direction: \.windDirection, speed: \.windSpeed)
         return OceanForcing(
-            currentDirection: direction(\.currentDirection), currentSpeed: scalar(\.currentSpeed),
-            windDirection: direction(\.windDirection), windSpeed: scalar(\.windSpeed),
+            currentDirection: current.direction, currentSpeed: current.speed,
+            windDirection: wind.direction, windSpeed: wind.speed,
             waveHeight: scalar(\.waveHeight), waterTemperature: scalar(\.waterTemperature)
         )
     }
@@ -209,16 +242,34 @@ enum GyeongbukCoastline {
 }
 
 struct JellyfishParticleSnapshot: Hashable {
+    let id: Int
     let coordinate: CLLocationCoordinate2D
     let isBeached: Bool
+    let isInactive: Bool
+
+    init(
+        id: Int = -1,
+        coordinate: CLLocationCoordinate2D,
+        isBeached: Bool,
+        isInactive: Bool = false
+    ) {
+        self.id = id
+        self.coordinate = coordinate
+        self.isBeached = isBeached
+        self.isInactive = isInactive
+    }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.coordinate.latitude == rhs.coordinate.latitude
-            && lhs.coordinate.longitude == rhs.coordinate.longitude && lhs.isBeached == rhs.isBeached
+        lhs.id == rhs.id
+            && lhs.coordinate.latitude == rhs.coordinate.latitude
+            && lhs.coordinate.longitude == rhs.coordinate.longitude
+            && lhs.isBeached == rhs.isBeached
+            && lhs.isInactive == rhs.isInactive
     }
 
     func hash(into hasher: inout Hasher) {
-        hasher.combine(coordinate.latitude); hasher.combine(coordinate.longitude); hasher.combine(isBeached)
+        hasher.combine(id); hasher.combine(coordinate.latitude); hasher.combine(coordinate.longitude)
+        hasher.combine(isBeached); hasher.combine(isInactive)
     }
 }
 
@@ -229,7 +280,8 @@ struct JellyfishPredictionPoint {
     let particles: [JellyfishParticleSnapshot]
 
     var beachedFraction: Double {
-        particles.isEmpty ? 0 : Double(particles.filter(\.isBeached).count) / Double(particles.count)
+        let supported = particles.filter { !$0.isInactive }
+        return supported.isEmpty ? 0 : Double(supported.filter(\.isBeached).count) / Double(supported.count)
     }
 }
 
@@ -239,7 +291,9 @@ struct JellyfishPredictionEngine {
     var particleCount = 360
     var stepSeconds = 30.0 * 60.0
     var forecastHours = 24.0
-    var checkpointHours = 3.0
+    // Keep integration checkpoints dense enough to preserve coastal turns. The map
+    // may simplify these points, but it must never invent a chord across land.
+    var checkpointHours = 0.5
 
     func predict(observation: JellyfishObservation, forcing: OceanForcing, seed: UInt64) -> JellyfishPredictionResult {
         predict(
@@ -255,16 +309,56 @@ struct JellyfishPredictionEngine {
         coastline: any CoastlineMask,
         seed: UInt64
     ) -> JellyfishPredictionResult {
+        integrate(
+            observation: observation,
+            field: field,
+            coastline: coastline,
+            seed: seed,
+            timeDirection: 1
+        )
+    }
+
+    /// Produces a demo-grade regional backcast from the latest observation.
+    /// The forcing is reversed, while diffusion and coastline collision use the
+    /// same rules as the forecast. Negative hours explicitly identify estimates,
+    /// not historical sightings.
+    func backcast(
+        observation: JellyfishObservation,
+        field: SpatiotemporalOceanField,
+        coastline: any CoastlineMask,
+        seed: UInt64
+    ) -> JellyfishPredictionResult {
+        let result = integrate(
+            observation: observation,
+            field: field,
+            coastline: coastline,
+            seed: seed,
+            timeDirection: -1
+        )
+        return .init(points: result.points.sorted { $0.hour < $1.hour })
+    }
+
+    private func integrate(
+        observation: JellyfishObservation,
+        field: SpatiotemporalOceanField,
+        coastline: any CoastlineMask,
+        seed: UInt64,
+        timeDirection: Double
+    ) -> JellyfishPredictionResult {
         let count = max(particleCount, 20)
         let steps = max(Int(forecastHours * 3600 / stepSeconds), 1)
         let checkpointStep = max(Int(checkpointHours * 3600 / stepSeconds), 1)
         let windage = speciesWindage(observation.species)
         let initialSigma = max(observation.initialUncertaintyRadius, 350) / 1.794
         var random = SeededRandomNumberGenerator(seed: seed)
-        var particles = (0..<count).map { _ in
-            initialParticle(observation, sigma: initialSigma, coastline: coastline, random: &random)
+        var particles = (0..<count).map { id in
+            initialParticle(id: id, observation, sigma: initialSigma, coastline: coastline, random: &random)
         }
-        var points = [predictionPoint(hour: 0, particles: particles, origin: observation.coordinate)]
+        let representativeID = representativeParticleID(in: particles)
+        var points = [predictionPoint(
+            hour: 0, particles: particles, origin: observation.coordinate,
+            representativeID: representativeID
+        )]
 
         for step in 1...steps {
             let hour = Double(step - 1) * stepSeconds / 3600
@@ -277,12 +371,12 @@ struct JellyfishPredictionEngine {
                     continue
                 }
                 let current = velocity(
-                    speed: forcing.currentSpeed * particles[index].speedBias,
+                    speed: forcing.currentSpeed * particles[index].speedBias * timeDirection,
                     direction: forcing.currentDirection + particles[index].directionBias
                 )
                 let wind = velocity(
-                    speed: forcing.windSpeed * windage,
-                    direction: forcing.windDirection + 180 + particles[index].directionBias * 0.35
+                    speed: forcing.windSpeed * windage * timeDirection,
+                    direction: forcing.windDirection + particles[index].directionBias * 0.35
                 )
                 let sigma = sqrt(2 * horizontalDiffusivity(forcing) * stepSeconds)
                 let next = (
@@ -303,8 +397,9 @@ struct JellyfishPredictionEngine {
             }
             if step.isMultiple(of: checkpointStep) || step == steps {
                 points.append(predictionPoint(
-                    hour: Double(step) * stepSeconds / 3600,
-                    particles: particles, origin: observation.coordinate
+                    hour: Double(step) * stepSeconds / 3600 * timeDirection,
+                    particles: particles, origin: observation.coordinate,
+                    representativeID: representativeID
                 ))
             }
         }
@@ -312,6 +407,7 @@ struct JellyfishPredictionEngine {
     }
 
     private func initialParticle(
+        id: Int,
         _ observation: JellyfishObservation,
         sigma: Double,
         coastline: any CoastlineMask,
@@ -322,6 +418,7 @@ struct JellyfishPredictionEngine {
             let coordinate = Self.coordinate(from: observation.coordinate, eastMeters: east, northMeters: north)
             if coastline.isWater(coordinate) {
                 return .init(
+                    id: id,
                     east: east, north: north,
                     speedBias: max(0.55, 1 + random.gaussian() * 0.12),
                     directionBias: random.gaussian() * 6
@@ -329,6 +426,7 @@ struct JellyfishPredictionEngine {
             }
         }
         return .init(
+            id: id,
             east: 0,
             north: 0,
             speedBias: 1,
@@ -399,20 +497,35 @@ struct JellyfishPredictionEngine {
         return (speed * sin(radians), speed * cos(radians))
     }
 
+    private func representativeParticleID(in particles: [Particle]) -> Int {
+        let meanEast = particles.map(\.east).reduce(0, +) / Double(particles.count)
+        let meanNorth = particles.map(\.north).reduce(0, +) / Double(particles.count)
+        return particles.min {
+            hypot($0.east - meanEast, $0.north - meanNorth)
+                < hypot($1.east - meanEast, $1.north - meanNorth)
+        }?.id ?? particles[0].id
+    }
+
     private func predictionPoint(
-        hour: Double, particles: [Particle], origin: CLLocationCoordinate2D
+        hour: Double, particles: [Particle], origin: CLLocationCoordinate2D,
+        representativeID: Int
     ) -> JellyfishPredictionPoint {
-        let moving = particles.filter { !$0.isInactive && !$0.isBeached }
         let available = particles.filter { !$0.isInactive }
-        let included = moving.isEmpty ? (available.isEmpty ? particles : available) : moving
+        // Beached particles remain part of the physical distribution so coastal
+        // accumulation does not disappear while offshore particles keep moving.
+        let included = available.isEmpty ? particles : available
         let meanEast = included.map(\.east).reduce(0, +) / Double(included.count)
         let meanNorth = included.map(\.north).reduce(0, +) / Double(included.count)
         // An arithmetic centroid can lie on land when particles surround a bay or peninsula.
         // Use the real particle nearest the centroid as the visible tracker coordinate.
-        let representative = included.min {
-            hypot($0.east - meanEast, $0.north - meanNorth)
-                < hypot($1.east - meanEast, $1.north - meanNorth)
-        } ?? included[0]
+        // Follow one physical particle for the whole route. Re-selecting the
+        // centroid-nearest particle at every frame creates impossible teleporting
+        // chords even when every individual particle obeys coastline collision.
+        let representative = included.first(where: { $0.id == representativeID })
+            ?? included.min {
+                hypot($0.east - meanEast, $0.north - meanNorth)
+                    < hypot($1.east - meanEast, $1.north - meanNorth)
+            } ?? included[0]
         let distances = included.map { hypot($0.east - representative.east, $0.north - representative.north) }.sorted()
         let index = min(Int(Double(distances.count - 1) * 0.80), distances.count - 1)
         return .init(
@@ -423,8 +536,10 @@ struct JellyfishPredictionEngine {
             uncertaintyRadius: max(distances[index], 350),
             particles: particles.map {
                 .init(
+                    id: $0.id,
                     coordinate: Self.coordinate(from: origin, eastMeters: $0.east, northMeters: $0.north),
-                    isBeached: $0.isBeached
+                    isBeached: $0.isBeached,
+                    isInactive: $0.isInactive
                 )
             }
         )
@@ -443,6 +558,7 @@ struct JellyfishPredictionEngine {
 }
 
 private struct Particle {
+    let id: Int
     var east: Double
     var north: Double
     let speedBias: Double

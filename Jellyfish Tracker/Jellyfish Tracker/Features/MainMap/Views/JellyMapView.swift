@@ -80,9 +80,7 @@ struct JellyMapView: View {
                 resultSheetExpanded = focused || resultSheetExpanded || searchSheetDetent != Self.collapsedSearchDetent
                 if focused {
                     showLayerMenu = false
-                    if searchSheetDetent == Self.collapsedSearchDetent {
-                        searchSheetDetent = Self.resultSearchDetent
-                    }
+                    searchSheetDetent = Self.expandedSearchDetent
                 }
             }
         }
@@ -107,12 +105,22 @@ struct JellyMapView: View {
             guard !isPresented else { return }
             resetAfterComparison()
         }
+        .onChange(of: model.searchText) { _, newValue in
+            guard searchFocused else { return }
+            if let selected = model.selectedBeach, newValue != selected.searchDisplayName {
+                model.selectedBeach = nil
+                model.focusedBeach = nil
+            }
+            withAnimation(.snappy) {
+                searchExpanded = true
+                resultSheetExpanded = true
+                searchSheetDetent = Self.expandedSearchDetent
+            }
+        }
         .sheet(isPresented: $searchSheetPresented) {
             systemSearchSheet
                 .presentationDetents(
-                    searchFocused
-                        ? [Self.collapsedSearchDetent, Self.resultSearchDetent]
-                        : [Self.collapsedSearchDetent, Self.resultSearchDetent, Self.expandedSearchDetent],
+                    [Self.collapsedSearchDetent, Self.resultSearchDetent, Self.expandedSearchDetent],
                     selection: $searchSheetDetent
                 )
                 .presentationDragIndicator(.hidden)
@@ -160,40 +168,56 @@ struct JellyMapView: View {
             }
 
             ForEach(model.tracks) { track in
-                let trackRisk = jellyfishRisk(for: track)
+                let render = model.renderSnapshot(
+                    for: track,
+                    forecastSampleIntervalHours: routeSampleStepHours
+                )
+                let trackRisk = jellyfishRisk(at: render.coordinate)
 
                 if model.selectedLayers.contains(.predictedPath) {
-                    let history = track.historyPath(at: model.forecastHour)
-                    let forecast = forecastRoutePath(for: track)
-                    let displayedParticles = Array(track.particles(at: model.forecastHour).enumerated())
-                        .filter { $0.offset.isMultiple(of: 12) }
+                    let history = render.historyPath
+                    let forecast = render.forecastPath
 
                     if history.count > 1 {
                         MapPolyline(coordinates: history)
-                            .stroke(AppColor.Map.routeHistory, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                            .stroke(
+                                AppColor.Map.routeHistory,
+                                style: StrokeStyle(
+                                    lineWidth: routeLineWidth,
+                                    lineCap: .round,
+                                    dash: routeDashPattern
+                                )
+                            )
                     }
                     if forecast.count > 1 {
-                        ForEach(routeSegments(for: forecast)) { segment in
-                            MapPolyline(coordinates: [segment.start, segment.end])
+                        ForEach(forecastRouteRuns(for: forecast)) { run in
+                            MapPolyline(coordinates: run.coordinates)
                                 .stroke(
-                                    segment.color.opacity(0.82),
-                                    style: StrokeStyle(lineWidth: routeLineWidth, lineCap: .round, dash: routeDashPattern)
+                                    run.color.opacity(0.82),
+                                    style: StrokeStyle(
+                                        lineWidth: routeLineWidth,
+                                        lineCap: .round,
+                                        dash: routeDashPattern
+                                    )
                                 )
                         }
                     }
                     if model.forecastHour > 0 {
-                        ForEach(displayedParticles, id: \.offset) { item in
-                            MapCircle(center: item.element.coordinate, radius: item.element.isBeached ? 260 : 180)
-                                .foregroundStyle(item.element.isBeached ? AppColor.Map.beachedParticle : AppColor.Text.accent.opacity(0.26))
+                        ForEach(render.displayedParticles, id: \.id) { particle in
+                            MapCircle(center: particle.particle.coordinate, radius: particle.particle.isBeached ? 260 : 180)
+                                .foregroundStyle(particle.particle.isBeached ? AppColor.Map.beachedParticle : AppColor.Text.accent.opacity(0.26))
                         }
                     }
-                    MapCircle(center: track.coordinate(at: model.forecastHour), radius: track.uncertaintyRadius(at: model.forecastHour))
+                    MapCircle(
+                        center: render.coordinate,
+                        radius: displayedUncertaintyRadius(for: track)
+                    )
                         .foregroundStyle(AppColor.LegacyTracker.coral.opacity(model.forecastHour == 0 ? 0.13 : 0.10))
                             .stroke(AppColor.LegacyTracker.coral.opacity(0.36), lineWidth: 1)
                 }
 
-                Annotation("", coordinate: track.coordinate(at: model.forecastHour)) {
-                    MainMapJellyfishMarker(risk: trackRisk, facesRight: jellyfishFacesRight(for: track))
+                Annotation("", coordinate: render.coordinate) {
+                    MainMapJellyfishMarker(risk: trackRisk, facesRight: render.facesRight)
                 }
             }
 
@@ -334,14 +358,17 @@ struct JellyMapView: View {
             jellyfishText: beach.recentJellyfish ? "\(beach.recentSightingsCount) recent" : "None",
             currentText: String(format: "%.2f m/s", beach.marine.currentSpeed),
             waterText: String(format: "%.1f°C", beach.marine.waterTemperature),
-            usesMockRisk: model.recommendationUsesMockData(for: beach)
+            usesMockRisk: model.recommendationUsesMockData(for: beach),
+            impactProbability: model.impactProbability(for: beach),
+            forecastHour: model.forecastHour,
+            activityStatuses: Dictionary(uniqueKeysWithValues: ActivityGroup.allCases.map {
+                ($0, model.activityRisk(for: $0, at: beach))
+            })
         )
     }
 
     private var sheetBeach: Beach? {
-        if let selected = model.selectedBeach { return selected }
-        guard !model.searchText.isEmpty else { return nil }
-        return model.filteredBeaches.first
+        model.selectedBeach
     }
 
     private var featuredBeach: Beach? {
@@ -358,12 +385,7 @@ struct JellyMapView: View {
     }
 
     private func displayRisk(for beach: Beach) -> RiskLevel {
-        switch beach.id {
-        case "chilpo": .good
-        case "yeongildae": .later
-        case "songdo": .caution
-        default: model.risk(for: beach)
-        }
+        model.risk(for: beach)
     }
 
     private static var gyeongbukMapPosition: MapCameraPosition {
@@ -415,7 +437,7 @@ struct JellyMapView: View {
     }
 
     private func shouldFocusSearch(for detent: PresentationDetent) -> Bool {
-        detent == Self.resultSearchDetent
+        detent == Self.expandedSearchDetent
             && model.searchText.isEmpty
             && model.selectedBeach == nil
     }
@@ -432,8 +454,7 @@ struct JellyMapView: View {
         mapPosition = model.position
     }
 
-    private func jellyfishRisk(for track: JellyfishTrack) -> RiskLevel {
-        let coordinate = track.coordinate(at: model.forecastHour)
+    private func jellyfishRisk(at coordinate: CLLocationCoordinate2D) -> RiskLevel {
         guard let nearestBeach = model.beaches.min(by: {
             model.distance(from: coordinate, to: $0.coordinate) < model.distance(from: coordinate, to: $1.coordinate)
         }) else {
@@ -442,51 +463,17 @@ struct JellyMapView: View {
         return model.risk(for: nearestBeach)
     }
 
-    private func jellyfishFacesRight(for track: JellyfishTrack) -> Bool {
-        let current = track.coordinate(at: model.forecastHour)
-        let previousHour = max(model.forecastHour - 1, -24)
-        let previous = track.coordinate(at: previousHour)
-        let previousDelta = current.longitude - previous.longitude
-        if abs(previousDelta) > 0.000_01 { return previousDelta >= 0 }
-
-        let nextHour = min(model.forecastHour + 1, 24)
-        let next = track.coordinate(at: nextHour)
-        return next.longitude - current.longitude >= 0
-    }
-
-    private func forecastRoutePath(for track: JellyfishTrack) -> [CLLocationCoordinate2D] {
-        var path = [track.coordinate(at: 0)]
-        var sampleHour = routeSampleStepHours
-        while sampleHour <= 24.000_1 {
-            path.append(track.coordinate(at: min(sampleHour, 24)))
-            sampleHour += routeSampleStepHours
-        }
-        return path
-    }
-
-    private func routeSegments(for path: [CLLocationCoordinate2D]) -> [ForecastRouteSegment] {
+    private func forecastRouteRuns(for path: [CLLocationCoordinate2D]) -> [ForecastRouteRun] {
         guard path.count > 1 else { return [] }
-        return zip(path.dropLast(), path.dropFirst()).enumerated().map { index, pair in
-            let midpoint = CLLocationCoordinate2D(
-                latitude: (pair.0.latitude + pair.1.latitude) / 2,
-                longitude: (pair.0.longitude + pair.1.longitude) / 2
-            )
-            return ForecastRouteSegment(
-                index: index,
-                start: pair.0,
-                end: pair.1,
-                color: AppColor.risk(routeRisk(at: midpoint))
-            )
-        }
-    }
-
-    private func routeRisk(at coordinate: CLLocationCoordinate2D) -> RiskLevel {
-        guard let nearestBeach = model.beaches.min(by: {
-            model.distance(from: coordinate, to: $0.coordinate) < model.distance(from: coordinate, to: $1.coordinate)
-        }) else {
-            return .unknown
-        }
-        return displayRisk(for: nearestBeach)
+        // Draw a small number of continuous polylines. Rendering every integration
+        // segment separately restarted the dash phase and made the route look solid.
+        let split = max(min(path.count / 2, path.count - 1), 1)
+        let nearTerm = Array(path[0...split])
+        let longerTerm = Array(path[split...])
+        return [
+            ForecastRouteRun(id: "near", coordinates: nearTerm, color: AppColor.risk(.caution)),
+            ForecastRouteRun(id: "long", coordinates: longerTerm, color: AppColor.risk(.later))
+        ].filter { $0.coordinates.count > 1 }
     }
 
     private var routeSampleStepHours: Double {
@@ -513,6 +500,13 @@ struct JellyMapView: View {
         default:
             [8, 18]
         }
+    }
+
+    private func displayedUncertaintyRadius(for track: JellyfishTrack) -> CLLocationDistance {
+        let modeledRadius = track.uncertaintyRadius(at: model.forecastHour)
+        // Keep uncertainty visible without letting a regional estimate dominate
+        // the whole map. This affects presentation only, not impact calculation.
+        return min(max(modeledRadius * 0.55, 450), 3_200)
     }
 
     private var routeLineWidth: CGFloat {
@@ -543,13 +537,10 @@ struct JellyMapView: View {
     }()
 }
 
-private struct ForecastRouteSegment: Identifiable {
-    let index: Int
-    let start: CLLocationCoordinate2D
-    let end: CLLocationCoordinate2D
+private struct ForecastRouteRun: Identifiable {
+    let id: String
+    let coordinates: [CLLocationCoordinate2D]
     let color: Color
-
-    var id: Int { index }
 }
 
 #Preview("Jelly Map") {

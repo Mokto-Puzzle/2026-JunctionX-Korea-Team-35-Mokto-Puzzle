@@ -91,7 +91,7 @@ struct TimelineSlider: View {
                     guard snappedValue != value else { return }
                     value = snappedValue
                 }
-            ), in: -24...24, step: 2)
+            ), in: -24...24, step: 1)
                 .tint(AppColor.Text.accent)
                 .accessibilityLabel("Jellyfish timeline")
             Text("+24h")
@@ -105,7 +105,7 @@ struct TimelineSlider: View {
     }
 
     private static func snappedForecastHour(_ value: Double) -> Double {
-        min(max((value / 2).rounded() * 2, -24), 24)
+        min(max(value.rounded(), -24), 24)
     }
 }
 

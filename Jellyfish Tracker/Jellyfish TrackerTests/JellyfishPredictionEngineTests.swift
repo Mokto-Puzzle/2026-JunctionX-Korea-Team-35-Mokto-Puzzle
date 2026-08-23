@@ -5,6 +5,27 @@ import CoreLocation
 final class JellyfishPredictionEngineTests: XCTestCase {
     private let origin = CLLocationCoordinate2D(latitude: 36.0, longitude: 129.4)
 
+    func testKMAOceanObservationParsesLiveCSVColumns() throws {
+        let response = """
+        #START7777
+        B, 202608230900, 22106, 포항, 129.78330000, 36.35000000, 0.4, 236, 3.0, 3.6, 28.2, 26.8, 1014.5, 92.0, ,=
+        C, 202608230900, 22490, 월포, 129.40100000, 36.21620000, 0.3, -99, -99.0, -99.0, 27.2, -99.0, -99.0, -99.0, ,=
+        """
+
+        let observations = KMAOceanClient.parse(response)
+
+        XCTAssertEqual(observations.count, 2)
+        XCTAssertEqual(observations[0].stationName, "포항")
+        XCTAssertEqual(observations[0].waveHeight, 0.4)
+        XCTAssertEqual(observations[0].windDirection, 236)
+        XCTAssertEqual(observations[0].windSpeed, 3.0)
+        XCTAssertEqual(observations[0].waterTemperature, 28.2)
+        XCTAssertEqual(observations[0].airTemperature, 26.8)
+        XCTAssertEqual(observations[1].stationName, "월포")
+        XCTAssertEqual(observations[1].waterTemperature, 27.2)
+        XCTAssertNil(observations[1].windSpeed)
+    }
+
     func testEastwardCurrentMovesCentroidApproximatelyExpectedDistance() throws {
         let engine = JellyfishPredictionEngine(particleCount: 1_000)
         let result = engine.predict(
@@ -26,6 +47,31 @@ final class JellyfishPredictionEngineTests: XCTestCase {
         XCTAssertEqual(distance, 21_600, accuracy: 1_200)
         XCTAssertGreaterThan(sixHour.coordinate.longitude, origin.longitude)
         XCTAssertEqual(sixHour.coordinate.latitude, origin.latitude, accuracy: 0.01)
+    }
+
+    func testBackcastReversesForcingAndUsesNegativeHours() throws {
+        var engine = JellyfishPredictionEngine(particleCount: 1_000)
+        engine.forecastHours = 6
+        engine.checkpointHours = 3
+        let forcing = OceanForcing(
+            currentDirection: 90,
+            currentSpeed: 1,
+            windDirection: 0,
+            windSpeed: 0,
+            waveHeight: 0,
+            waterTemperature: 20
+        )
+        let result = engine.backcast(
+            observation: JellyfishObservation(coordinate: origin, species: "Nomura's jellyfish"),
+            field: .init(constant: forcing, around: origin),
+            coastline: AllWaterMask(),
+            seed: 42
+        )
+        let sixHoursAgo = try XCTUnwrap(result.points.first { $0.hour == -6 })
+
+        XCTAssertEqual(result.points.map(\.hour), [-6, -3, 0])
+        XCTAssertLessThan(sixHoursAgo.coordinate.longitude, origin.longitude)
+        XCTAssertEqual(sixHoursAgo.coordinate.latitude, origin.latitude, accuracy: 0.01)
     }
 
     func testUncertaintyExpandsOverForecastHorizon() throws {
@@ -194,10 +240,10 @@ final class JellyfishPredictionEngineTests: XCTestCase {
         XCTAssertTrue(url.absoluteString.contains("test%2Bkey"))
     }
 
-    func testMockMarkerIsOnlyAppliedToMockValues() throws {
+    func testReferenceValuesDoNotAddAlertPunctuation() throws {
         let beach = try XCTUnwrap(MockOceanDataProvider.beaches.first)
         XCTAssertEqual(beach.provenance(for: .waveHeight).quality, .mock)
-        XCTAssertTrue(beach.marked("0.8 m", fields: .waveHeight).hasSuffix("!"))
+        XCTAssertEqual(beach.marked("0.8 m", fields: .waveHeight), "0.8 m")
 
         var liveBeach = beach
         liveBeach.mockFields.remove(.waveHeight)
@@ -247,6 +293,57 @@ final class JellyfishPredictionEngineTests: XCTestCase {
         XCTAssertEqual(value.waterTemperature, 15, accuracy: 0.001)
     }
 
+    func testOppositeVectorsInterpolateToSlackWater() throws {
+        let coordinate = CLLocationCoordinate2D(latitude: 36.0, longitude: 129.4)
+        let field = SpatiotemporalOceanField(samples: [
+            .init(coordinate: coordinate, hour: 0, forcing: .init(
+                currentDirection: 90, currentSpeed: 1,
+                windDirection: 0, windSpeed: 8,
+                waveHeight: 1, waterTemperature: 20
+            )),
+            .init(coordinate: coordinate, hour: 2, forcing: .init(
+                currentDirection: 270, currentSpeed: 1,
+                windDirection: 180, windSpeed: 8,
+                waveHeight: 3, waterTemperature: 24
+            ))
+        ])
+
+        let midpoint = try XCTUnwrap(field.forcing(at: coordinate, hour: 1))
+        XCTAssertEqual(midpoint.currentSpeed, 0, accuracy: 1e-10)
+        XCTAssertEqual(midpoint.windSpeed, 0, accuracy: 1e-10)
+        XCTAssertEqual(midpoint.waveHeight, 2, accuracy: 1e-10)
+    }
+
+    func testPublishedOceanSamplesDoNotExtrapolateInTime() {
+        let coordinate = CLLocationCoordinate2D(latitude: 36.0, longitude: 129.4)
+        let forcing = OceanForcing(
+            currentDirection: 45, currentSpeed: 0.5,
+            windDirection: 90, windSpeed: 3,
+            waveHeight: 1.2, waterTemperature: 21
+        )
+        let field = SpatiotemporalOceanField(samples: [
+            .init(coordinate: coordinate, hour: -6, forcing: forcing),
+            .init(coordinate: coordinate, hour: 12, forcing: forcing)
+        ])
+
+        XCTAssertNil(field.forcing(at: coordinate, hour: -6.001))
+        XCTAssertNotNil(field.forcing(at: coordinate, hour: -6))
+        XCTAssertNotNil(field.forcing(at: coordinate, hour: 12))
+        XCTAssertNil(field.forcing(at: coordinate, hour: 12.001))
+    }
+
+    func testConstantOceanFieldRemainsAvailableAcrossSimulation() {
+        let coordinate = CLLocationCoordinate2D(latitude: 36.0, longitude: 129.4)
+        let field = SpatiotemporalOceanField(constant: .init(
+            currentDirection: 90, currentSpeed: 0.4,
+            windDirection: 0, windSpeed: 0,
+            waveHeight: 0.5, waterTemperature: 20
+        ), around: coordinate)
+
+        XCTAssertNotNil(field.forcing(at: coordinate, hour: -75))
+        XCTAssertNotNil(field.forcing(at: coordinate, hour: 24))
+    }
+
     func testParticlesBeachAtLandBoundaryAndDoNotCrossLand() throws {
         struct WestIsLand: CoastlineMask {
             func isWater(_ coordinate: CLLocationCoordinate2D) -> Bool { coordinate.longitude >= 129.40 }
@@ -267,6 +364,52 @@ final class JellyfishPredictionEngineTests: XCTestCase {
         let final = try XCTUnwrap(result.points.last)
         XCTAssertGreaterThan(final.beachedFraction, 0.8)
         XCTAssertTrue(final.particles.allSatisfy { $0.coordinate.longitude >= 129.3999 })
+    }
+
+    func testParticleIDsRemainStableAcrossPredictionFrames() throws {
+        let start = CLLocationCoordinate2D(latitude: 36.0, longitude: 129.41)
+        let result = JellyfishPredictionEngine(
+            particleCount: 40, stepSeconds: 600, forecastHours: 2, checkpointHours: 1
+        ).predict(
+            observation: .init(coordinate: start, species: "moon jellyfish"),
+            forcing: .init(
+                currentDirection: 90, currentSpeed: 0.2,
+                windDirection: 0, windSpeed: 0,
+                waveHeight: 0.5, waterTemperature: 20
+            ),
+            seed: 42
+        )
+
+        let expectedIDs = try XCTUnwrap(result.points.first).particles.map(\.id)
+        XCTAssertEqual(Set(expectedIDs).count, expectedIDs.count)
+        for point in result.points {
+            XCTAssertEqual(point.particles.map(\.id), expectedIDs)
+        }
+    }
+
+    func testUnsupportedForecastHourDoesNotReturnParticlesOrImpact() throws {
+        let track = try XCTUnwrap(MockOceanDataProvider.modeledTracks.first)
+        let unsupportedHour = track.supportedFutureHorizon + 1
+
+        XCTAssertTrue(track.particles(at: unsupportedHour).isEmpty)
+        XCTAssertNil(track.entryFraction(
+            near: track.coordinate(at: 0),
+            radius: 5_000,
+            upTo: unsupportedHour
+        ))
+    }
+
+    func testOfficialRegionalTrackDoesNotInventHistoricalPath() {
+        let track = JellyfishTrack(
+            id: "official-history",
+            species: "Moon jellyfish",
+            observedAt: "NIFS",
+            originKind: .officialRegionEstimate,
+            checkpoints: [(0, .init(latitude: 36.0, longitude: 129.5))],
+            provenance: .live(source: "NIFS", quality: .officialRegional)
+        )
+
+        XCTAssertTrue(track.historyPath(at: -12).isEmpty)
     }
 
     func testParticleCannotTunnelAcrossNarrowLandWhenDestinationIsWater() throws {
@@ -333,6 +476,7 @@ final class JellyfishPredictionEngineTests: XCTestCase {
                 XCTAssertTrue(GyeongbukCoastline.mask.isWater(track.coordinate(at: hour)))
             }
             XCTAssertTrue(track.forecastPath(at: 24).allSatisfy(GyeongbukCoastline.mask.isWater))
+            XCTAssertTrue(JellyfishTrack.pathStaysInWater(track.forecastPath(at: 24, sampleIntervalHours: 3)))
         }
     }
 
@@ -402,5 +546,34 @@ final class JellyfishPredictionEngineTests: XCTestCase {
         XCTAssertEqual(samples.count, 2)
         XCTAssertTrue(samples.allSatisfy { $0.coordinate.latitude == 36.04 })
         XCTAssertEqual(try XCTUnwrap(samples.last).speed, 0.3, accuracy: 0.001)
+    }
+
+    func testTidalCurrentParserConvertsCentimetresPerSecond() throws {
+        let date = Date(timeIntervalSince1970: 1_787_452_800)
+        let object: [String: Any] = ["result": ["data": [[
+            "current_speed": "15.0",
+            "pre_lon": "129.50297",
+            "current_dir": "195",
+            "pre_lat": "35.70638"
+        ]]]]
+        let samples = TidalCurrentClient.parse(object, date: date)
+        XCTAssertEqual(samples.count, 1)
+        XCTAssertEqual(try XCTUnwrap(samples.first).speed, 0.15, accuracy: 0.000_1)
+        XCTAssertEqual(try XCTUnwrap(samples.first).direction, 195, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(samples.first).coordinate.longitude, 129.50297, accuracy: 0.000_01)
+    }
+
+    func testTidalCurrentRequestUsesOfficialAreaParameters() throws {
+        let client = TidalCurrentClient(
+            serviceKey: "demo-key==",
+            endpoint: APIEnvironment.defaultTidalCurrentEndpoint
+        )
+        let url = try client.requestURL(at: Date(timeIntervalSince1970: 1_787_452_800))
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+        let values = Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(values["ServiceKey"], "demo-key==")
+        XCTAssertEqual(values["ResultType"], "json")
+        XCTAssertEqual(values["MinX"], "129.30")
+        XCTAssertEqual(values["MaxY"], "37.20")
     }
 }

@@ -151,7 +151,7 @@ enum AppColor {
     }
 
     enum Map {
-        static let routeHistory = Primitive.Common.shade000.opacity(0.9)
+        static let routeHistory = Primitive.Common.shade500.opacity(0.72)
         static let beachedParticle = Primitive.Orange.shade500.opacity(0.26)
         static let error = Primitive.Orange.shade500
     }

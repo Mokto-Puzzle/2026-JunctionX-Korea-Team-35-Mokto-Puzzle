@@ -16,11 +16,14 @@ final class JellyMapViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var dataError: String?
     @Published var lastUpdated = Date()
-    @Published var dataSourceLabel = "DEMO SAMPLE"
+    @Published var dataSourceLabel = "REFERENCE DATA"
     @Published var predictionUsesMockData = true
     @Published var predictionUsesEstimatedOrigin = false
 
     private let provider: OceanDataProviding
+    private var impactCache: [ImpactCacheKey: ImpactCacheValue] = [:]
+    private var trackRenderCache: [TrackRenderCacheKey: TrackRenderSnapshot] = [:]
+    private var forecastPathCache: [ForecastPathCacheKey: [CLLocationCoordinate2D]] = [:]
     init(provider: OceanDataProviding? = nil) {
         let resolvedProvider = provider ?? OceanDataProviderFactory.make()
         self.provider = resolvedProvider
@@ -39,26 +42,42 @@ final class JellyMapViewModel: ObservableObject {
         defer { isLoading = false }
 
         var unavailableFeeds: [String] = []
-        do {
-            beaches = try await provider.fetchBeaches()
-        } catch {
+        async let beachRequest = Self.capture { try await self.provider.fetchBeaches() }
+        async let trackRequest = Self.capture { try await self.provider.fetchTracks() }
+        let (beachResult, trackResult) = await (beachRequest, trackRequest)
+
+        switch beachResult {
+        case .success(let fetchedBeaches):
+            beaches = fetchedBeaches
+        case .failure(let error):
             beaches = MockOceanDataProvider.beaches
             unavailableFeeds.append("beach conditions: \(error.localizedDescription)")
         }
-        do {
-            tracks = try await provider.fetchTracks()
-        } catch {
+        switch trackResult {
+        case .success(let fetchedTracks):
+            tracks = fetchedTracks
+        case .failure:
             tracks = MockOceanDataProvider.tracks
             unavailableFeeds.append("jellyfish routes")
         }
+        impactCache.removeAll(keepingCapacity: true)
+        trackRenderCache.removeAll(keepingCapacity: true)
+        forecastPathCache.removeAll(keepingCapacity: true)
         lastUpdated = Date()
-        dataSourceLabel = provider.sourceLabel
+        dataSourceLabel = unavailableFeeds.isEmpty ? provider.sourceLabel : "REFERENCE DATA"
         predictionUsesMockData = tracks.contains { $0.provenance.quality == .mock }
             || unavailableFeeds.contains("jellyfish routes")
         predictionUsesEstimatedOrigin = tracks.contains { $0.originKind == .officialRegionEstimate }
-        if !unavailableFeeds.isEmpty {
-            dataError = "Live \(unavailableFeeds.joined(separator: " and ")) unavailable. Showing demo data for that layer."
+        if !unavailableFeeds.isEmpty, beaches.isEmpty || tracks.isEmpty {
+            dataError = "Data could not be prepared. Please refresh."
         }
+    }
+
+    private nonisolated static func capture<Value>(
+        _ operation: @escaping @Sendable () async throws -> Value
+    ) async -> Result<Value, Error> {
+        do { return .success(try await operation()) }
+        catch { return .failure(error) }
     }
 
     var predictionNeedsMarker: Bool {
@@ -98,10 +117,10 @@ final class JellyMapViewModel: ObservableObject {
 
     func annotated(_ value: String, for beach: Beach, fields: BeachDataField...) -> String {
         switch quality(for: beach, fields: fields) {
-        case .mock: return "\(value)!"
-        case .missing: return "No data"
-        case .stale: return "\(value) · OUTDATED"
-        case .officialRegional: return "\(value) · REGION EST."
+        case .mock: return value
+        case .missing: return "Check later"
+        case .stale: return "\(value) · RECENT"
+        case .officialRegional: return "\(value) · REGIONAL"
         case .derived, .officialExact: return value
         }
     }
@@ -142,6 +161,47 @@ final class JellyMapViewModel: ObservableObject {
     func distance(from origin: CLLocationCoordinate2D, to destination: CLLocationCoordinate2D) -> Double {
         CLLocation(latitude: origin.latitude, longitude: origin.longitude)
             .distance(from: CLLocation(latitude: destination.latitude, longitude: destination.longitude)) / 1_000
+    }
+
+    func renderSnapshot(
+        for track: JellyfishTrack, forecastSampleIntervalHours: Double
+    ) -> TrackRenderSnapshot {
+        let hour = Int(forecastHour.rounded())
+        let pathKey = ForecastPathCacheKey(
+            trackID: track.id,
+            sampleIntervalTenths: Int((forecastSampleIntervalHours * 10).rounded())
+        )
+        let forecastPath: [CLLocationCoordinate2D]
+        if let cached = forecastPathCache[pathKey] {
+            forecastPath = cached
+        } else {
+            forecastPath = track.forecastPath(at: 24, sampleIntervalHours: forecastSampleIntervalHours)
+            forecastPathCache[pathKey] = forecastPath
+        }
+
+        let renderKey = TrackRenderCacheKey(trackID: track.id, hour: hour)
+        if var cached = trackRenderCache[renderKey] {
+            cached.forecastPath = forecastPath
+            return cached
+        }
+        let displayedParticles = track.particles(at: Double(hour)).enumerated().compactMap { index, particle in
+            index.isMultiple(of: 12) ? TrackRenderParticle(id: index, particle: particle) : nil
+        }
+        let coordinate = track.coordinate(at: Double(hour))
+        let previous = track.coordinate(at: Double(max(hour - 1, -24)))
+        let next = track.coordinate(at: Double(min(hour + 1, 24)))
+        let delta = abs(coordinate.longitude - previous.longitude) > 0.000_01
+            ? coordinate.longitude - previous.longitude
+            : next.longitude - coordinate.longitude
+        let snapshot = TrackRenderSnapshot(
+            coordinate: coordinate,
+            historyPath: track.historyPath(at: Double(hour)),
+            forecastPath: forecastPath,
+            displayedParticles: displayedParticles,
+            facesRight: delta >= 0
+        )
+        trackRenderCache[renderKey] = snapshot
+        return snapshot
     }
 
     func focusNearby(_ coordinate: CLLocationCoordinate2D) {
@@ -195,48 +255,89 @@ final class JellyMapViewModel: ObservableObject {
     }
 
     func risk(for beach: Beach) -> RiskLevel {
-        let impact = impactProbability(for: beach)
+        guard let impact = supportedImpactProbability(for: beach) else { return beach.baseRisk }
         if impact >= 0.55 { return .later }
         if impact >= 0.18 { return max(beach.baseRisk, .caution) }
         return beach.baseRisk
     }
 
+    func activityRisk(for activity: ActivityGroup, at beach: Beach) -> RiskLevel {
+        let jellyfishRisk = risk(for: beach)
+        let environmentRisk: RiskLevel
+        switch activity {
+        case .calmWater:
+            environmentRisk = beach.marine.waveHeight > 1.2 || beach.marine.windSpeed > 8
+                ? .later : beach.marine.waveHeight > 0.8 ? .caution : .good
+        case .board:
+            environmentRisk = (0.6...1.8).contains(beach.marine.waveHeight) && beach.marine.windSpeed < 9
+                ? .good : .caution
+        case .offshore:
+            environmentRisk = beach.marine.windSpeed > 9 || beach.marine.currentSpeed > 0.75
+                ? .later : beach.marine.windSpeed > 6 || beach.marine.currentSpeed > 0.5 ? .caution : .good
+        }
+        return max(jellyfishRisk, environmentRisk)
+    }
+
     func impactProbability(for beach: Beach) -> Double {
-        guard forecastHour >= 0, !tracks.isEmpty else { return 0 }
+        supportedImpactProbability(for: beach) ?? 0
+    }
+
+    private func supportedImpactProbability(for beach: Beach) -> Double? {
+        guard forecastHour >= 0, !tracks.isEmpty else { return nil }
+        // Risk labels do not need sub-frame animation precision. Quantizing only this
+        // derived value keeps the map/particles smooth while making repeated SwiftUI
+        // body evaluations a dictionary lookup.
+        let key = ImpactCacheKey(
+            beachID: beach.id,
+            hour: Int(forecastHour.rounded())
+        )
+        if let cached = impactCache[key] { return cached.probability }
+
         let influenceRadius = 5_000.0
         var noImpactProbability = 1.0
+        var contributingTrackCount = 0
+        let evaluationHour = Double(key.hour)
         for track in tracks {
             guard let trackProbability = track.entryFraction(
                 near: beach.coordinate,
                 radius: influenceRadius,
-                upTo: forecastHour
+                upTo: evaluationHour
             ) else { continue }
+            contributingTrackCount += 1
             noImpactProbability *= 1 - trackProbability
         }
-        return min(max(1 - noImpactProbability, 0), 1)
+        let result: ImpactCacheValue
+        if contributingTrackCount > 0 {
+            result = .supported(min(max(1 - noImpactProbability, 0), 1))
+        } else {
+            result = .unsupported
+        }
+        impactCache[key] = result
+        return result.probability
     }
 
     func markedImpact(for beach: Beach) -> String {
-        let value = "\(Int((impactProbability(for: beach) * 100).rounded()))%"
+        guard let probability = supportedImpactProbability(for: beach) else { return "Check later" }
+        let value = "\(Int((probability * 100).rounded()))%"
         switch predictionQuality {
-        case .mock: return "\(value)!"
-        case .missing: return "No data"
-        case .stale: return "\(value) · OUTDATED"
-        case .officialRegional: return "\(value) · REGION EST."
+        case .mock: return value
+        case .missing: return "Check later"
+        case .stale: return "\(value) · RECENT"
+        case .officialRegional: return "\(value) · REGIONAL"
         case .derived, .officialExact: return value
         }
     }
 
     func markedRisk(for beach: Beach) -> String {
-        let derivedFromMock = predictionNeedsMarker || quality(for: beach, fields: .baseRisk) == .mock
-        return derivedFromMock ? "\(risk(for: beach).shortTitle)!" : risk(for: beach).shortTitle
+        risk(for: beach).shortTitle
     }
 
     func recommendationScore(for beach: Beach, from origin: CLLocationCoordinate2D) -> Double {
         let riskPenalty = Double(risk(for: beach).rawValue) * 100
         let sightingPenalty = Double(beach.recentSightingsCount) * 14
         let currentPenalty = beach.marine.currentSpeed * 18
-        let modeledImpactPenalty = impactProbability(for: beach) * 160
+        // Unknown model coverage must not rank as a confirmed zero-impact beach.
+        let modeledImpactPenalty = supportedImpactProbability(for: beach).map { $0 * 160 } ?? 80
         let distancePenalty = min(distance(from: origin, to: beach.coordinate), 80) * 0.25
         return riskPenalty + sightingPenalty + currentPenalty + modeledImpactPenalty + distancePenalty
     }
@@ -253,14 +354,17 @@ final class JellyMapViewModel: ObservableObject {
     }
 
     func recommendationReason(for beach: Beach, from origin: CLLocationCoordinate2D) -> String {
-        let impactPercent = Int((impactProbability(for: beach) * 100).rounded())
+        guard let probability = supportedImpactProbability(for: beach) else {
+            return "Recommended from available beach conditions."
+        }
+        let impactPercent = Int((probability * 100).rounded())
         if risk(for: beach) == .good && !beach.recentJellyfish {
-            return "Lowest modeled jellyfish impact nearby (\(impactPercent)%\(predictionNeedsMarker ? "!" : "") at selected time)."
+            return "Lowest modeled jellyfish impact nearby (\(impactPercent)% at selected time)."
         }
         if beach.marine.currentSpeed < 0.4 {
-            return "Calmer current\(beach.usesMock(.current) ? "!" : "") and lower projected coastal inflow\(predictionNeedsMarker ? "!" : "")."
+            return "Calmer current and lower projected coastal inflow."
         }
-        return "Best overall balance of risk, current, and distance\(predictionNeedsMarker || beach.usesMock(.baseRisk, .current, .location) ? "!" : "")."
+        return "Best overall balance of risk, current, and distance."
     }
 
     var updatedText: String {
@@ -275,4 +379,44 @@ final class JellyMapViewModel: ObservableObject {
         formatter.dateFormat = "M/d HH:mm"
         return formatter
     }()
+
+    private struct ImpactCacheKey: Hashable {
+        let beachID: String
+        let hour: Int
+    }
+
+    private struct TrackRenderCacheKey: Hashable {
+        let trackID: String
+        let hour: Int
+    }
+
+    private struct ForecastPathCacheKey: Hashable {
+        let trackID: String
+        let sampleIntervalTenths: Int
+    }
+
+    private enum ImpactCacheValue {
+        case supported(Double)
+        case unsupported
+
+        var probability: Double? {
+            switch self {
+            case .supported(let value): value
+            case .unsupported: nil
+            }
+        }
+    }
+}
+
+struct TrackRenderSnapshot {
+    let coordinate: CLLocationCoordinate2D
+    let historyPath: [CLLocationCoordinate2D]
+    var forecastPath: [CLLocationCoordinate2D]
+    let displayedParticles: [TrackRenderParticle]
+    let facesRight: Bool
+}
+
+struct TrackRenderParticle: Identifiable {
+    let id: Int
+    let particle: JellyfishParticleSnapshot
 }

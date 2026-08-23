@@ -44,7 +44,8 @@ struct NearbyComparisonView: View {
             }
             .padding(.top, 77)
 
-            Spacer(minLength: 0)
+            Spacer()
+                .frame(height: 12)
 
             HStack(spacing: 4) {
                 Image("IconNearMe")
@@ -70,39 +71,35 @@ struct NearbyComparisonView: View {
     }
 
     private var beachList: some View {
-        ScrollView {
-            LazyVStack(spacing: 16) {
-                ForEach(nearbyBeaches) { beach in
-                    ComparisonBeachCard(
-                        beach: beach,
-                        risk: model.risk(for: beach),
-                        summary: summary(for: beach),
-                        onDisclosureTap: {}
-                    )
-                }
+        VStack(spacing: 16) {
+            ForEach(nearbyBeaches) { beach in
+                ComparisonBeachCard(
+                    beach: beach,
+                    risk: model.risk(for: beach),
+                    summary: summary(for: beach),
+                    onDisclosureTap: {
+                        model.focus(on: beach)
+                        dismiss()
+                    }
+                )
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 36)
-            .padding(.bottom, 34)
         }
-        .scrollIndicators(.hidden)
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 24)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     private func summary(for beach: Beach) -> String {
-        let riskPhrase: String
-        switch model.risk(for: beach) {
-        case .good:
-            riskPhrase = "low"
-        case .caution:
-            riskPhrase = "moderate"
-        case .later:
-            riskPhrase = "high"
-        case .unknown:
-            riskPhrase = "unclear"
-        }
-
+        let hour = Int(model.forecastHour.rounded())
         let wavePhrase = beach.marine.waveHeight <= 1.2 ? "calm" : "active"
-        return "For 12 hours, the chance of jellyfish intrusion is \(riskPhrase), and the waves are \(wavePhrase)."
+        let waveText = String(format: "%.1f m", beach.marine.waveHeight)
+        if hour < 0 {
+            let sightings = beach.recentJellyfish ? "recent sightings reported" : "no recent sightings reported"
+            return "\(abs(hour))h ago reference: \(sightings), with \(wavePhrase) waves (\(waveText))."
+        }
+        let timeText = hour == 0 ? "Now" : "+\(hour)h forecast"
+        return "\(timeText): modeled jellyfish impact \(model.markedImpact(for: beach)), with \(wavePhrase) waves (\(waveText))."
     }
 }
 
@@ -113,25 +110,25 @@ private struct ComparisonBeachCard: View {
     let onDisclosureTap: () -> Void
 
     var body: some View {
-        HStack(spacing: 16) {
-            jellyfishIcon
+        Button(action: onDisclosureTap) {
+            HStack(spacing: 16) {
+                jellyfishIcon
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(beach.displayName)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(AppColor.Text.normal)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-                Text(summary)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(AppColor.Text.secondary)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(beach.displayName)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(AppColor.Text.normal)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                    Text(summary)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(AppColor.Text.secondary)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            Spacer(minLength: 8)
+                Spacer(minLength: 8)
 
-            Button(action: onDisclosureTap) {
                 Image("IconChevronRight")
                     .renderingMode(.template)
                     .resizable()
@@ -140,9 +137,9 @@ private struct ComparisonBeachCard: View {
                     .foregroundStyle(AppColor.Icon.secondary)
                     .frame(width: 32, height: 44)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open beach detail")
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open \(beach.displayName) detail")
         .padding(.leading, 14)
         .padding(.trailing, 9)
         .frame(maxWidth: .infinity, minHeight: 118, alignment: .center)

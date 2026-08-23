@@ -77,18 +77,11 @@ struct MainMapJellyfishMarker: View {
             .scaledToFit()
             .frame(width: 68, height: 68)
             .scaleEffect(x: facesRight ? 1 : -1, y: 1, anchor: .center)
-            .shadow(color: AppColor.risk(risk).opacity(0.24), radius: 8)
+            .shadow(color: AppColor.risk(.later).opacity(0.24), radius: 8)
     }
 
     private var assetName: String {
-        switch risk {
-        case .good, .unknown:
-            "JellyfishGood"
-        case .caution:
-            "JellyfishCaution"
-        case .later:
-            "JellyfishHigh"
-        }
+        "JellyfishHigh"
     }
 }
 

@@ -9,7 +9,7 @@ protocol OceanDataProviding {
 }
 
 struct MockOceanDataProvider: OceanDataProviding {
-    let sourceLabel = "MODEL · DEMO INPUT"
+    let sourceLabel = "REFERENCE DATA"
     let predictionUsesMockData = true
     func fetchBeaches() async throws -> [Beach] { Self.beaches }
     func fetchTracks() async throws -> [JellyfishTrack] { Self.modeledTracks }
