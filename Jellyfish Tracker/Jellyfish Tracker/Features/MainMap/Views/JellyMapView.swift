@@ -336,13 +336,15 @@ struct JellyMapView: View {
         } else {
             collapseSearchSheet(clearSelection: true)
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+        // Wait until the full-screen cover dismissal animation has completed.
+        // Re-presenting the sheet during that transition lets UIKit restore the
+        // old expanded detent even though SwiftUI already holds the summary one.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
             searchSheetPresented = true
-            // Presentation can restore UIKit's previously selected (expanded)
-            // detent after the binding was updated. Re-assert the summary detent
-            // once the replacement sheet has entered the hierarchy.
             if model.selectedBeach != nil {
-                DispatchQueue.main.async {
+                // Let the new presentation controller enter the hierarchy before
+                // selecting its initial detent.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
                     searchFocused = false
                     searchExpanded = false
                     resultSheetExpanded = true
