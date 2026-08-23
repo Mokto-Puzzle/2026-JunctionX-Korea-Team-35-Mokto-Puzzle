@@ -195,10 +195,10 @@ private struct BeachResultExpandedDetails: View {
                 .background(AppColor.Fill.Button.accent, in: .rect(cornerRadius: 14))
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("Best Time")
+                Text("Selected Time")
                     .font(.custom("Helvetica-Bold", size: 14, relativeTo: .caption))
                     .foregroundStyle(AppColor.Text.caption)
-                Text("13:00~18:00")
+                Text(selectedTimeText)
                     .font(.custom("Helvetica", size: 18, relativeTo: .body))
                     .foregroundStyle(AppColor.Text.normal)
             }
@@ -209,29 +209,52 @@ private struct BeachResultExpandedDetails: View {
                     .foregroundStyle(AppColor.Text.caption)
 
                 HStack(spacing: 9) {
-                    BeachActivityChip(title: "SAFE", fill: AppColor.Fill.StatusChip.safe, foreground: AppColor.Status.safe)
-                    BeachActivityChip(title: "Surf", fill: AppColor.Fill.StatusChip.surf, foreground: AppColor.Status.surf)
-                    BeachActivityChip(title: "Fish", fill: AppColor.Fill.StatusChip.fish, foreground: AppColor.Status.fish)
+                    activityChip("Swim", group: .calmWater, fill: AppColor.Fill.StatusChip.safe, foreground: AppColor.Status.safe)
+                    activityChip("Surf", group: .board, fill: AppColor.Fill.StatusChip.surf, foreground: AppColor.Status.surf)
+                    activityChip("Fish", group: .offshore, fill: AppColor.Fill.StatusChip.fish, foreground: AppColor.Status.fish)
                 }
             }
         }
     }
 
     private var safetySummary: String {
-        "For 12 hours, the chance of jellyfish intrusion is \(jellyfishPhrase), and the waves are \(wavePhrase)."
+        "At \(relativeTimeText), modeled jellyfish impact is \(jellyfishPhrase) (\(Int((content.impactProbability * 100).rounded()))%), and waves are \(wavePhrase)."
     }
 
+    private var relativeTimeText: String {
+        let hour = Int(content.forecastHour.rounded())
+        if hour == 0 { return "the current time" }
+        return hour > 0 ? "+\(hour)h" : "\(abs(hour))h ago"
+    }
+
+    private var selectedTimeText: String {
+        let date = Date().addingTimeInterval(content.forecastHour * 3_600)
+        return Self.timeFormatter.string(from: date) + (content.forecastHour == 0 ? " · Now" : " · \(relativeTimeText)")
+    }
+
+    private func activityChip(
+        _ name: String, group: ActivityGroup, fill: Color, foreground: Color
+    ) -> some View {
+        let status = content.activityStatuses[group] ?? .unknown
+        return BeachActivityChip(
+            title: "\(name) · \(status.shortTitle)",
+            fill: fill,
+            foreground: foreground
+        )
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "Asia/Seoul")
+        formatter.dateFormat = "MMM d, HH:mm"
+        return formatter
+    }()
+
     private var jellyfishPhrase: String {
-        switch content.risk {
-        case .good:
-            "low"
-        case .caution:
-            "moderate"
-        case .later:
-            "high"
-        case .unknown:
-            "being checked"
-        }
+        if content.impactProbability >= 0.55 { return "high" }
+        if content.impactProbability >= 0.18 { return "moderate" }
+        return "low"
     }
 
     private var wavePhrase: String {

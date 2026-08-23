@@ -200,6 +200,9 @@ struct BeachResultSummaryContent {
     let currentText: String
     let waterText: String
     let usesMockRisk: Bool
+    var impactProbability: Double = 0
+    var forecastHour: Double = 0
+    var activityStatuses: [ActivityGroup: RiskLevel] = [:]
 }
 
 struct BeachResultSummary: View {

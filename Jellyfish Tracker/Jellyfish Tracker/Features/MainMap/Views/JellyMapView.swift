@@ -337,7 +337,12 @@ struct JellyMapView: View {
             jellyfishText: beach.recentJellyfish ? "\(beach.recentSightingsCount) recent" : "None",
             currentText: String(format: "%.2f m/s", beach.marine.currentSpeed),
             waterText: String(format: "%.1f°C", beach.marine.waterTemperature),
-            usesMockRisk: model.recommendationUsesMockData(for: beach)
+            usesMockRisk: model.recommendationUsesMockData(for: beach),
+            impactProbability: model.impactProbability(for: beach),
+            forecastHour: model.forecastHour,
+            activityStatuses: Dictionary(uniqueKeysWithValues: ActivityGroup.allCases.map {
+                ($0, model.activityRisk(for: $0, at: beach))
+            })
         )
     }
 
@@ -361,12 +366,7 @@ struct JellyMapView: View {
     }
 
     private func displayRisk(for beach: Beach) -> RiskLevel {
-        switch beach.id {
-        case "chilpo": .good
-        case "yeongildae": .later
-        case "songdo": .caution
-        default: model.risk(for: beach)
-        }
+        model.risk(for: beach)
     }
 
     private static var gyeongbukMapPosition: MapCameraPosition {

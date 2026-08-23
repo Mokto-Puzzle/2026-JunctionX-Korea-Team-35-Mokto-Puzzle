@@ -214,6 +214,23 @@ final class JellyMapViewModel: ObservableObject {
         return beach.baseRisk
     }
 
+    func activityRisk(for activity: ActivityGroup, at beach: Beach) -> RiskLevel {
+        let jellyfishRisk = risk(for: beach)
+        let environmentRisk: RiskLevel
+        switch activity {
+        case .calmWater:
+            environmentRisk = beach.marine.waveHeight > 1.2 || beach.marine.windSpeed > 8
+                ? .later : beach.marine.waveHeight > 0.8 ? .caution : .good
+        case .board:
+            environmentRisk = (0.6...1.8).contains(beach.marine.waveHeight) && beach.marine.windSpeed < 9
+                ? .good : .caution
+        case .offshore:
+            environmentRisk = beach.marine.windSpeed > 9 || beach.marine.currentSpeed > 0.75
+                ? .later : beach.marine.windSpeed > 6 || beach.marine.currentSpeed > 0.5 ? .caution : .good
+        }
+        return max(jellyfishRisk, environmentRisk)
+    }
+
     func impactProbability(for beach: Beach) -> Double {
         supportedImpactProbability(for: beach) ?? 0
     }
