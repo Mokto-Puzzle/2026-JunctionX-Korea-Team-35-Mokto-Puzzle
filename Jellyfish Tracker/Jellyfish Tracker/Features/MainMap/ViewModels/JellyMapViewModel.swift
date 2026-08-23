@@ -22,6 +22,8 @@ final class JellyMapViewModel: ObservableObject {
 
     private let provider: OceanDataProviding
     private var impactCache: [ImpactCacheKey: ImpactCacheValue] = [:]
+    private var trackRenderCache: [TrackRenderCacheKey: TrackRenderSnapshot] = [:]
+    private var forecastPathCache: [ForecastPathCacheKey: [CLLocationCoordinate2D]] = [:]
     init(provider: OceanDataProviding? = nil) {
         let resolvedProvider = provider ?? OceanDataProviderFactory.make()
         self.provider = resolvedProvider
@@ -59,6 +61,8 @@ final class JellyMapViewModel: ObservableObject {
             unavailableFeeds.append("jellyfish routes")
         }
         impactCache.removeAll(keepingCapacity: true)
+        trackRenderCache.removeAll(keepingCapacity: true)
+        forecastPathCache.removeAll(keepingCapacity: true)
         lastUpdated = Date()
         dataSourceLabel = unavailableFeeds.isEmpty ? provider.sourceLabel : "REFERENCE DATA"
         predictionUsesMockData = tracks.contains { $0.provenance.quality == .mock }
@@ -157,6 +161,47 @@ final class JellyMapViewModel: ObservableObject {
     func distance(from origin: CLLocationCoordinate2D, to destination: CLLocationCoordinate2D) -> Double {
         CLLocation(latitude: origin.latitude, longitude: origin.longitude)
             .distance(from: CLLocation(latitude: destination.latitude, longitude: destination.longitude)) / 1_000
+    }
+
+    func renderSnapshot(
+        for track: JellyfishTrack, forecastSampleIntervalHours: Double
+    ) -> TrackRenderSnapshot {
+        let hour = Int(forecastHour.rounded())
+        let pathKey = ForecastPathCacheKey(
+            trackID: track.id,
+            sampleIntervalTenths: Int((forecastSampleIntervalHours * 10).rounded())
+        )
+        let forecastPath: [CLLocationCoordinate2D]
+        if let cached = forecastPathCache[pathKey] {
+            forecastPath = cached
+        } else {
+            forecastPath = track.forecastPath(at: 24, sampleIntervalHours: forecastSampleIntervalHours)
+            forecastPathCache[pathKey] = forecastPath
+        }
+
+        let renderKey = TrackRenderCacheKey(trackID: track.id, hour: hour)
+        if var cached = trackRenderCache[renderKey] {
+            cached.forecastPath = forecastPath
+            return cached
+        }
+        let displayedParticles = track.particles(at: Double(hour)).enumerated().compactMap { index, particle in
+            index.isMultiple(of: 12) ? TrackRenderParticle(id: index, particle: particle) : nil
+        }
+        let coordinate = track.coordinate(at: Double(hour))
+        let previous = track.coordinate(at: Double(max(hour - 1, -24)))
+        let next = track.coordinate(at: Double(min(hour + 1, 24)))
+        let delta = abs(coordinate.longitude - previous.longitude) > 0.000_01
+            ? coordinate.longitude - previous.longitude
+            : next.longitude - coordinate.longitude
+        let snapshot = TrackRenderSnapshot(
+            coordinate: coordinate,
+            historyPath: track.historyPath(at: Double(hour)),
+            forecastPath: forecastPath,
+            displayedParticles: displayedParticles,
+            facesRight: delta >= 0
+        )
+        trackRenderCache[renderKey] = snapshot
+        return snapshot
     }
 
     func focusNearby(_ coordinate: CLLocationCoordinate2D) {
@@ -340,6 +385,16 @@ final class JellyMapViewModel: ObservableObject {
         let hour: Int
     }
 
+    private struct TrackRenderCacheKey: Hashable {
+        let trackID: String
+        let hour: Int
+    }
+
+    private struct ForecastPathCacheKey: Hashable {
+        let trackID: String
+        let sampleIntervalTenths: Int
+    }
+
     private enum ImpactCacheValue {
         case supported(Double)
         case unsupported
@@ -351,4 +406,17 @@ final class JellyMapViewModel: ObservableObject {
             }
         }
     }
+}
+
+struct TrackRenderSnapshot {
+    let coordinate: CLLocationCoordinate2D
+    let historyPath: [CLLocationCoordinate2D]
+    var forecastPath: [CLLocationCoordinate2D]
+    let displayedParticles: [TrackRenderParticle]
+    let facesRight: Bool
+}
+
+struct TrackRenderParticle: Identifiable {
+    let id: Int
+    let particle: JellyfishParticleSnapshot
 }

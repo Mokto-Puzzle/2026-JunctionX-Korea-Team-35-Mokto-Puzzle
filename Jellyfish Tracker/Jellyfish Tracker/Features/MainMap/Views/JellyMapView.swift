@@ -168,13 +168,15 @@ struct JellyMapView: View {
             }
 
             ForEach(model.tracks) { track in
-                let trackRisk = jellyfishRisk(for: track)
+                let render = model.renderSnapshot(
+                    for: track,
+                    forecastSampleIntervalHours: routeSampleStepHours
+                )
+                let trackRisk = jellyfishRisk(at: render.coordinate)
 
                 if model.selectedLayers.contains(.predictedPath) {
-                    let history = track.historyPath(at: model.forecastHour)
-                    let forecast = forecastRoutePath(for: track)
-                    let displayedParticles = Array(track.particles(at: model.forecastHour).enumerated())
-                        .filter { $0.offset.isMultiple(of: 12) }
+                    let history = render.historyPath
+                    let forecast = render.forecastPath
 
                     if history.count > 1 {
                         MapPolyline(coordinates: history)
@@ -201,21 +203,21 @@ struct JellyMapView: View {
                         }
                     }
                     if model.forecastHour > 0 {
-                        ForEach(displayedParticles, id: \.offset) { item in
-                            MapCircle(center: item.element.coordinate, radius: item.element.isBeached ? 260 : 180)
-                                .foregroundStyle(item.element.isBeached ? AppColor.Map.beachedParticle : AppColor.Text.accent.opacity(0.26))
+                        ForEach(render.displayedParticles, id: \.id) { particle in
+                            MapCircle(center: particle.particle.coordinate, radius: particle.particle.isBeached ? 260 : 180)
+                                .foregroundStyle(particle.particle.isBeached ? AppColor.Map.beachedParticle : AppColor.Text.accent.opacity(0.26))
                         }
                     }
                     MapCircle(
-                        center: track.coordinate(at: model.forecastHour),
+                        center: render.coordinate,
                         radius: displayedUncertaintyRadius(for: track)
                     )
                         .foregroundStyle(AppColor.LegacyTracker.coral.opacity(model.forecastHour == 0 ? 0.13 : 0.10))
                             .stroke(AppColor.LegacyTracker.coral.opacity(0.36), lineWidth: 1)
                 }
 
-                Annotation("", coordinate: track.coordinate(at: model.forecastHour)) {
-                    MainMapJellyfishMarker(risk: trackRisk, facesRight: jellyfishFacesRight(for: track))
+                Annotation("", coordinate: render.coordinate) {
+                    MainMapJellyfishMarker(risk: trackRisk, facesRight: render.facesRight)
                 }
             }
 
@@ -444,30 +446,13 @@ struct JellyMapView: View {
         mapPosition = model.position
     }
 
-    private func jellyfishRisk(for track: JellyfishTrack) -> RiskLevel {
-        let coordinate = track.coordinate(at: model.forecastHour)
+    private func jellyfishRisk(at coordinate: CLLocationCoordinate2D) -> RiskLevel {
         guard let nearestBeach = model.beaches.min(by: {
             model.distance(from: coordinate, to: $0.coordinate) < model.distance(from: coordinate, to: $1.coordinate)
         }) else {
             return .unknown
         }
         return model.risk(for: nearestBeach)
-    }
-
-    private func jellyfishFacesRight(for track: JellyfishTrack) -> Bool {
-        let current = track.coordinate(at: model.forecastHour)
-        let previousHour = max(model.forecastHour - 1, -24)
-        let previous = track.coordinate(at: previousHour)
-        let previousDelta = current.longitude - previous.longitude
-        if abs(previousDelta) > 0.000_01 { return previousDelta >= 0 }
-
-        let nextHour = min(model.forecastHour + 1, 24)
-        let next = track.coordinate(at: nextHour)
-        return next.longitude - current.longitude >= 0
-    }
-
-    private func forecastRoutePath(for track: JellyfishTrack) -> [CLLocationCoordinate2D] {
-        track.forecastPath(at: 24, sampleIntervalHours: routeSampleStepHours)
     }
 
     private func forecastRouteRuns(for path: [CLLocationCoordinate2D]) -> [ForecastRouteRun] {
