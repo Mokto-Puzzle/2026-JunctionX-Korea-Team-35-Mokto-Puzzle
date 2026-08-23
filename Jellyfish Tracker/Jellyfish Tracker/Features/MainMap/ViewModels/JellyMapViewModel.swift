@@ -21,6 +21,7 @@ final class JellyMapViewModel: ObservableObject {
     @Published var predictionUsesEstimatedOrigin = false
 
     private let provider: OceanDataProviding
+    private var impactCache: [ImpactCacheKey: ImpactCacheValue] = [:]
     init(provider: OceanDataProviding? = nil) {
         let resolvedProvider = provider ?? OceanDataProviderFactory.make()
         self.provider = resolvedProvider
@@ -57,6 +58,7 @@ final class JellyMapViewModel: ObservableObject {
             tracks = MockOceanDataProvider.tracks
             unavailableFeeds.append("jellyfish routes")
         }
+        impactCache.removeAll(keepingCapacity: true)
         lastUpdated = Date()
         dataSourceLabel = unavailableFeeds.isEmpty ? provider.sourceLabel : "REFERENCE DATA"
         predictionUsesMockData = tracks.contains { $0.provenance.quality == .mock }
@@ -237,20 +239,36 @@ final class JellyMapViewModel: ObservableObject {
 
     private func supportedImpactProbability(for beach: Beach) -> Double? {
         guard forecastHour >= 0, !tracks.isEmpty else { return nil }
+        // Risk labels do not need sub-frame animation precision. Quantizing only this
+        // derived value keeps the map/particles smooth while making repeated SwiftUI
+        // body evaluations a dictionary lookup.
+        let key = ImpactCacheKey(
+            beachID: beach.id,
+            halfHour: Int((forecastHour * 2).rounded())
+        )
+        if let cached = impactCache[key] { return cached.probability }
+
         let influenceRadius = 5_000.0
         var noImpactProbability = 1.0
         var contributingTrackCount = 0
+        let evaluationHour = Double(key.halfHour) / 2
         for track in tracks {
             guard let trackProbability = track.entryFraction(
                 near: beach.coordinate,
                 radius: influenceRadius,
-                upTo: forecastHour
+                upTo: evaluationHour
             ) else { continue }
             contributingTrackCount += 1
             noImpactProbability *= 1 - trackProbability
         }
-        guard contributingTrackCount > 0 else { return nil }
-        return min(max(1 - noImpactProbability, 0), 1)
+        let result: ImpactCacheValue
+        if contributingTrackCount > 0 {
+            result = .supported(min(max(1 - noImpactProbability, 0), 1))
+        } else {
+            result = .unsupported
+        }
+        impactCache[key] = result
+        return result.probability
     }
 
     func markedImpact(for beach: Beach) -> String {
@@ -316,4 +334,21 @@ final class JellyMapViewModel: ObservableObject {
         formatter.dateFormat = "M/d HH:mm"
         return formatter
     }()
+
+    private struct ImpactCacheKey: Hashable {
+        let beachID: String
+        let halfHour: Int
+    }
+
+    private enum ImpactCacheValue {
+        case supported(Double)
+        case unsupported
+
+        var probability: Double? {
+            switch self {
+            case .supported(let value): value
+            case .unsupported: nil
+            }
+        }
+    }
 }

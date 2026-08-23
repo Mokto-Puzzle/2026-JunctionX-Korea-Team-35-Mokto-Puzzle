@@ -520,17 +520,20 @@ struct JellyfishTrack: Identifiable, Hashable {
         let selectedFrame = rawParticles(at: hour)
         let activeIDs = activeParticleIDs(in: selectedFrame, relativeTo: referenceIDs)
         guard !activeIDs.isEmpty else { return nil }
-        let target = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        let latitudeMeters = 111_132.0
+        let longitudeMeters = 111_320.0 * cos(coordinate.latitude * .pi / 180)
+        let radiusSquared = radius * radius
         var entered: Set<Int> = []
         for frame in frames {
             for (index, particle) in frame.enumerated() {
                 let id = particle.id >= 0 ? particle.id : index
                 guard activeIDs.contains(id), !entered.contains(id), !particle.isInactive else { continue }
                 let point = particle.coordinate
-                if target.distance(from: CLLocation(
-                    latitude: point.latitude,
-                    longitude: point.longitude
-                )) <= radius { entered.insert(id) }
+                let north = (point.latitude - coordinate.latitude) * latitudeMeters
+                guard abs(north) <= radius else { continue }
+                let east = (point.longitude - coordinate.longitude) * longitudeMeters
+                guard abs(east) <= radius else { continue }
+                if north * north + east * east <= radiusSquared { entered.insert(id) }
             }
         }
         return Double(entered.count) / Double(activeIDs.count)
