@@ -39,15 +39,21 @@ final class JellyMapViewModel: ObservableObject {
         defer { isLoading = false }
 
         var unavailableFeeds: [String] = []
-        do {
-            beaches = try await provider.fetchBeaches()
-        } catch {
+        async let beachRequest = Self.capture { try await self.provider.fetchBeaches() }
+        async let trackRequest = Self.capture { try await self.provider.fetchTracks() }
+        let (beachResult, trackResult) = await (beachRequest, trackRequest)
+
+        switch beachResult {
+        case .success(let fetchedBeaches):
+            beaches = fetchedBeaches
+        case .failure(let error):
             beaches = MockOceanDataProvider.beaches
             unavailableFeeds.append("beach conditions: \(error.localizedDescription)")
         }
-        do {
-            tracks = try await provider.fetchTracks()
-        } catch {
+        switch trackResult {
+        case .success(let fetchedTracks):
+            tracks = fetchedTracks
+        case .failure:
             tracks = MockOceanDataProvider.tracks
             unavailableFeeds.append("jellyfish routes")
         }
@@ -59,6 +65,13 @@ final class JellyMapViewModel: ObservableObject {
         if !unavailableFeeds.isEmpty, beaches.isEmpty || tracks.isEmpty {
             dataError = "Data could not be prepared. Please refresh."
         }
+    }
+
+    private nonisolated static func capture<Value>(
+        _ operation: @escaping @Sendable () async throws -> Value
+    ) async -> Result<Value, Error> {
+        do { return .success(try await operation()) }
+        catch { return .failure(error) }
     }
 
     var predictionNeedsMarker: Bool {

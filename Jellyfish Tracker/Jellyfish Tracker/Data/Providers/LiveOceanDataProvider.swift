@@ -68,6 +68,7 @@ enum OceanDataProviderFactory {
 
 struct LiveOceanDataProvider: OceanDataProviding {
     let configuration: APIEnvironment
+    private let cache = LiveFeedCache.shared
     // Live NIFS reports provide observed regions rather than exact points. They are modeled
     // as regional estimates rather than exact observations.
     let predictionUsesMockData = false
@@ -103,7 +104,7 @@ struct LiveOceanDataProvider: OceanDataProviding {
 
         if let key = configuration.kmaHubKey {
             configuredFeeds += 1
-            if let observations = try? await KMAOceanClient(authKey: key).fetchLatest() {
+            if let observations = try? await cache.oceanObservations(authKey: key) {
                 beaches = beaches.map { beach in
                     guard let observation = observations.bestMatch(for: beach) else { return beach }
                     let current = beach.marine
@@ -130,7 +131,7 @@ struct LiveOceanDataProvider: OceanDataProviding {
            let endpoint = configuration.currentEndpoint {
             configuredFeeds += 1
             do {
-                let currents = try await CurrentGridClient(serviceKey: key, endpoint: endpoint).fetchLatest()
+                let currents = try await cache.gridCurrents(serviceKey: key, endpoint: endpoint)
                 beaches = beaches.map { beach in
                     guard let current = currents.nearest(to: beach.coordinate) else { return beach }
                     let marine = beach.marine
@@ -155,7 +156,7 @@ struct LiveOceanDataProvider: OceanDataProviding {
         if let key = configuration.nifsKey {
             configuredFeeds += 1
             do {
-                let bulletin = try await NIFSJellyfishClient(apiKey: key).fetchLatestBulletin()
+                let bulletin = try await cache.bulletin(apiKey: key)
                 beaches = beaches.applying(bulletin: bulletin)
                 successfulFeeds += 1
             } catch {
@@ -171,48 +172,17 @@ struct LiveOceanDataProvider: OceanDataProviding {
 
     func fetchTracks() async throws -> [JellyfishTrack] {
         guard let key = configuration.nifsKey else { return MockOceanDataProvider.modeledTracks }
-        let bulletin = try await NIFSJellyfishClient(apiKey: key).fetchLatestBulletin()
+        let bulletin = try await cache.bulletin(apiKey: key)
         guard !bulletin.observations.isEmpty else { throw LiveAPIError.emptyJellyfishReport }
         let referenceDate = Date()
 
-        let oceanObservations: [KMAOceanObservation]
-        if let key = configuration.kmaHubKey {
-            oceanObservations = (try? await KMAOceanClient(authKey: key).fetchLatest()) ?? []
-        } else {
-            oceanObservations = []
-        }
-
-        let gridCurrents: [GridCurrent]
-        if let key = configuration.currentServiceKey, let endpoint = configuration.currentEndpoint {
-            gridCurrents = (try? await CurrentGridClient(serviceKey: key, endpoint: endpoint).fetchLatest()) ?? []
-        } else {
-            gridCurrents = []
-        }
-
-        let marineForecasts: [KMAMarineForecastSample]
-        if let key = configuration.kmaHubKey {
-            marineForecasts = (try? await KMAMarineForecastClient(authKey: key)
-                .fetchForecast(referenceDate: referenceDate)) ?? []
-        } else {
-            marineForecasts = []
-        }
-
-        let romsForecasts: [ROMSForecastSample]
-        if let key = configuration.romsServiceKey, let endpoint = configuration.romsEndpoint {
-            romsForecasts = (try? await ROMSForecastClient(serviceKey: key, endpoint: endpoint)
-                .fetchGyeongbuk(referenceDate: referenceDate)) ?? []
-        } else {
-            romsForecasts = []
-        }
-
-        let tidalForecasts: [TidalCurrentSample]
-        if let key = configuration.tidalCurrentServiceKey,
-           let endpoint = configuration.tidalCurrentEndpoint {
-            tidalForecasts = (try? await TidalCurrentClient(serviceKey: key, endpoint: endpoint)
-                .fetchGyeongbuk(referenceDate: referenceDate)) ?? []
-        } else {
-            tidalForecasts = []
-        }
+        async let oceanTask = fetchOceanObservations()
+        async let currentTask = fetchGridCurrents()
+        async let marineTask = fetchMarineForecasts(referenceDate: referenceDate)
+        async let romsTask = fetchROMSForecasts(referenceDate: referenceDate)
+        async let tidalTask = fetchTidalForecasts(referenceDate: referenceDate)
+        let (oceanObservations, gridCurrents, marineForecasts, romsForecasts, tidalForecasts) =
+            await (oceanTask, currentTask, marineTask, romsTask, tidalTask)
 
         let engine = JellyfishPredictionEngine()
         return bulletin.observations.enumerated().map { index, regionalObservation in
@@ -300,6 +270,34 @@ struct LiveOceanDataProvider: OceanDataProviding {
                 )
             )
         }
+    }
+
+    private func fetchOceanObservations() async -> [KMAOceanObservation] {
+        guard let key = configuration.kmaHubKey else { return [] }
+        return (try? await cache.oceanObservations(authKey: key)) ?? []
+    }
+
+    private func fetchGridCurrents() async -> [GridCurrent] {
+        guard let key = configuration.currentServiceKey, let endpoint = configuration.currentEndpoint else { return [] }
+        return (try? await cache.gridCurrents(serviceKey: key, endpoint: endpoint)) ?? []
+    }
+
+    private func fetchMarineForecasts(referenceDate: Date) async -> [KMAMarineForecastSample] {
+        guard let key = configuration.kmaHubKey else { return [] }
+        return (try? await KMAMarineForecastClient(authKey: key).fetchForecast(referenceDate: referenceDate)) ?? []
+    }
+
+    private func fetchROMSForecasts(referenceDate: Date) async -> [ROMSForecastSample] {
+        guard let key = configuration.romsServiceKey, let endpoint = configuration.romsEndpoint else { return [] }
+        return (try? await ROMSForecastClient(serviceKey: key, endpoint: endpoint)
+            .fetchGyeongbuk(referenceDate: referenceDate)) ?? []
+    }
+
+    private func fetchTidalForecasts(referenceDate: Date) async -> [TidalCurrentSample] {
+        guard let key = configuration.tidalCurrentServiceKey,
+              let endpoint = configuration.tidalCurrentEndpoint else { return [] }
+        return (try? await TidalCurrentClient(serviceKey: key, endpoint: endpoint)
+            .fetchGyeongbuk(referenceDate: referenceDate)) ?? []
     }
 
     private static func demoBackcastHours(observedAt: Date?, referenceDate: Date) -> Double {
@@ -424,6 +422,71 @@ struct LiveOceanDataProvider: OceanDataProviding {
         let north = nearshore.north * 0.7 + background.north * 0.3
         let direction = (atan2(east, north) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
         return (direction, hypot(east, north))
+    }
+}
+
+/// Shares expensive feeds requested by both beach conditions and route generation.
+/// Entries are deliberately short-lived so reopening sheets is instant while a manual
+/// refresh can receive newly published observations after the demo window advances.
+private actor LiveFeedCache {
+    static let shared = LiveFeedCache()
+    private let lifetime: TimeInterval = 10 * 60
+
+    private var bulletinEntry: (date: Date, value: NIFSBulletin)?
+    private var bulletinTask: Task<NIFSBulletin, Error>?
+    private var oceanEntry: (date: Date, value: [KMAOceanObservation])?
+    private var oceanTask: Task<[KMAOceanObservation], Error>?
+    private var currentEntry: (date: Date, value: [GridCurrent])?
+    private var currentTask: Task<[GridCurrent], Error>?
+
+    func bulletin(apiKey: String) async throws -> NIFSBulletin {
+        if let entry = bulletinEntry, Date().timeIntervalSince(entry.date) < lifetime { return entry.value }
+        if let bulletinTask { return try await bulletinTask.value }
+        let task = Task { try await NIFSJellyfishClient(apiKey: apiKey).fetchLatestBulletin() }
+        bulletinTask = task
+        do {
+            let value = try await task.value
+            bulletinEntry = (Date(), value)
+            bulletinTask = nil
+            return value
+        } catch {
+            bulletinTask = nil
+            throw error
+        }
+    }
+
+    func oceanObservations(authKey: String) async throws -> [KMAOceanObservation] {
+        if let entry = oceanEntry, Date().timeIntervalSince(entry.date) < lifetime { return entry.value }
+        if let oceanTask { return try await oceanTask.value }
+        let task = Task { try await KMAOceanClient(authKey: authKey).fetchLatest() }
+        oceanTask = task
+        do {
+            let value = try await task.value
+            oceanEntry = (Date(), value)
+            oceanTask = nil
+            return value
+        } catch {
+            oceanTask = nil
+            throw error
+        }
+    }
+
+    func gridCurrents(serviceKey: String, endpoint: String) async throws -> [GridCurrent] {
+        if let entry = currentEntry, Date().timeIntervalSince(entry.date) < lifetime { return entry.value }
+        if let currentTask { return try await currentTask.value }
+        let task = Task {
+            try await CurrentGridClient(serviceKey: serviceKey, endpoint: endpoint).fetchLatest()
+        }
+        currentTask = task
+        do {
+            let value = try await task.value
+            currentEntry = (Date(), value)
+            currentTask = nil
+            return value
+        } catch {
+            currentTask = nil
+            throw error
+        }
     }
 }
 
