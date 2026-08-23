@@ -673,7 +673,7 @@ private struct TourismAPIClient {
     }
 }
 
-private struct KMAOceanObservation {
+struct KMAOceanObservation {
     let stationName: String
     let waveHeight: Double?
     let windDirection: Double?
@@ -682,7 +682,7 @@ private struct KMAOceanObservation {
     let airTemperature: Double?
 }
 
-private struct KMAOceanClient {
+struct KMAOceanClient {
     let authKey: String
 
     func fetchLatest() async throws -> [KMAOceanObservation] {
@@ -693,20 +693,32 @@ private struct KMAOceanClient {
             URLQueryItem(name: "authKey", value: authKey)
         ]
         guard let url = components?.url else { throw LiveAPIError.invalidURL }
-        let text = try await NetworkLoader.text(from: url)
+        let payload = try await NetworkLoader.data(from: url)
+        // sea_obs is still served as EUC-KR. Keep UTF-8 as the first choice in case
+        // KMA modernizes the endpoint without notice.
+        guard let text = String(data: payload, encoding: .utf8)
+            ?? String(data: payload, encoding: .init(rawValue: 0x80000422)) else {
+            throw LiveAPIError.invalidResponse
+        }
 
+        return Self.parse(text)
+    }
+
+    static func parse(_ text: String) -> [KMAOceanObservation] {
         return text.split(whereSeparator: \.isNewline).compactMap { rawLine in
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             guard !line.isEmpty, !line.hasPrefix("#") else { return nil }
-            let fields = line.split(whereSeparator: \.isWhitespace).map(String.init)
-            guard fields.count >= 10 else { return nil }
+            let fields = line.components(separatedBy: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            // Live format: type, time, station ID/name, lon/lat, then measurements.
+            guard fields.count >= 13 else { return nil }
             return KMAOceanObservation(
-                stationName: fields[2],
-                waveHeight: Self.valid(fields[safe: 4]),
-                windDirection: Self.valid(fields[safe: 5]),
-                windSpeed: Self.valid(fields[safe: 6]),
-                waterTemperature: Self.valid(fields[safe: 8]),
-                airTemperature: Self.valid(fields[safe: 9])
+                stationName: fields[3],
+                waveHeight: Self.valid(fields[safe: 6]),
+                windDirection: Self.valid(fields[safe: 7]),
+                windSpeed: Self.valid(fields[safe: 8]),
+                waterTemperature: Self.valid(fields[safe: 10]),
+                airTemperature: Self.valid(fields[safe: 11])
             )
         }
     }

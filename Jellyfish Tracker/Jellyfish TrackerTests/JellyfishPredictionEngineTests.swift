@@ -5,6 +5,27 @@ import CoreLocation
 final class JellyfishPredictionEngineTests: XCTestCase {
     private let origin = CLLocationCoordinate2D(latitude: 36.0, longitude: 129.4)
 
+    func testKMAOceanObservationParsesLiveCSVColumns() throws {
+        let response = """
+        #START7777
+        B, 202608230900, 22106, 포항, 129.78330000, 36.35000000, 0.4, 236, 3.0, 3.6, 28.2, 26.8, 1014.5, 92.0, ,=
+        C, 202608230900, 22490, 월포, 129.40100000, 36.21620000, 0.3, -99, -99.0, -99.0, 27.2, -99.0, -99.0, -99.0, ,=
+        """
+
+        let observations = KMAOceanClient.parse(response)
+
+        XCTAssertEqual(observations.count, 2)
+        XCTAssertEqual(observations[0].stationName, "포항")
+        XCTAssertEqual(observations[0].waveHeight, 0.4)
+        XCTAssertEqual(observations[0].windDirection, 236)
+        XCTAssertEqual(observations[0].windSpeed, 3.0)
+        XCTAssertEqual(observations[0].waterTemperature, 28.2)
+        XCTAssertEqual(observations[0].airTemperature, 26.8)
+        XCTAssertEqual(observations[1].stationName, "월포")
+        XCTAssertEqual(observations[1].waterTemperature, 27.2)
+        XCTAssertNil(observations[1].windSpeed)
+    }
+
     func testEastwardCurrentMovesCentroidApproximatelyExpectedDistance() throws {
         let engine = JellyfishPredictionEngine(particleCount: 1_000)
         let result = engine.predict(
