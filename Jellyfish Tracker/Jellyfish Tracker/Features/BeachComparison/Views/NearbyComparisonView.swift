@@ -44,7 +44,8 @@ struct NearbyComparisonView: View {
             }
             .padding(.top, 77)
 
-            Spacer(minLength: 0)
+            Spacer()
+                .frame(height: 12)
 
             HStack(spacing: 4) {
                 Image("IconNearMe")
@@ -70,25 +71,23 @@ struct NearbyComparisonView: View {
     }
 
     private var beachList: some View {
-        ScrollView {
-            LazyVStack(spacing: 16) {
-                ForEach(nearbyBeaches) { beach in
-                    ComparisonBeachCard(
-                        beach: beach,
-                        risk: model.risk(for: beach),
-                        summary: summary(for: beach),
-                        onDisclosureTap: {
-                            model.focus(on: beach)
-                            dismiss()
-                        }
-                    )
-                }
+        VStack(spacing: 16) {
+            ForEach(nearbyBeaches) { beach in
+                ComparisonBeachCard(
+                    beach: beach,
+                    risk: model.risk(for: beach),
+                    summary: summary(for: beach),
+                    onDisclosureTap: {
+                        model.focus(on: beach)
+                        dismiss()
+                    }
+                )
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 36)
-            .padding(.bottom, 34)
         }
-        .scrollIndicators(.hidden)
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 24)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     private func summary(for beach: Beach) -> String {
