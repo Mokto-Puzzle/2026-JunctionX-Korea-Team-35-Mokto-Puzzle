@@ -99,21 +99,8 @@ struct JellyMapView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $showComparison) {
+        .fullScreenCover(isPresented: $showComparison, onDismiss: restoreAfterComparison) {
             NearbyComparisonView(model: model, userCoordinate: location.coordinate)
-        }
-        .onChange(of: showComparison) { _, isPresented in
-            guard !isPresented else { return }
-            if let selected = model.selectedBeach {
-                model.searchText = selected.searchDisplayName
-                mapPosition = model.position
-                searchFocused = false
-                searchExpanded = false
-                resultSheetExpanded = true
-                searchSheetDetent = Self.resultSearchDetent
-            } else {
-                collapseSearchSheet(clearSelection: true)
-            }
         }
         .sheet(isPresented: $searchSheetPresented) {
             systemSearchSheet
@@ -323,6 +310,26 @@ struct JellyMapView: View {
     private func presentComparison() {
         collapseSearchSheet(clearSelection: true)
         showComparison = true
+    }
+
+    private func restoreAfterComparison() {
+        // Recreate the system sheet after the full-screen transition. Updating only
+        // its detent while it was covered could leave UIKit's sheet controller at
+        // the previous expanded height.
+        searchSheetPresented = false
+        if let selected = model.selectedBeach {
+            model.searchText = selected.searchDisplayName
+            mapPosition = model.position
+            searchFocused = false
+            searchExpanded = false
+            resultSheetExpanded = true
+            searchSheetDetent = Self.resultSearchDetent
+        } else {
+            collapseSearchSheet(clearSelection: true)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            searchSheetPresented = true
+        }
     }
 
     private func collapseSearchSheet(clearSelection: Bool) {
