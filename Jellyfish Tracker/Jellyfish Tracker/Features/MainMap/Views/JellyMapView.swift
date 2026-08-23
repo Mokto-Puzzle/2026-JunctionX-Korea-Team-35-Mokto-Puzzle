@@ -338,6 +338,17 @@ struct JellyMapView: View {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
             searchSheetPresented = true
+            // Presentation can restore UIKit's previously selected (expanded)
+            // detent after the binding was updated. Re-assert the summary detent
+            // once the replacement sheet has entered the hierarchy.
+            if model.selectedBeach != nil {
+                DispatchQueue.main.async {
+                    searchFocused = false
+                    searchExpanded = false
+                    resultSheetExpanded = true
+                    searchSheetDetent = Self.resultSearchDetent
+                }
+            }
         }
     }
 
