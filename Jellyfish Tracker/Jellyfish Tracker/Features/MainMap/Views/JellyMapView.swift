@@ -15,6 +15,7 @@ struct JellyMapView: View {
     @State private var showLayerMenu = false
     @State private var searchSheetPresented = true
     @State private var searchSheetDetent: PresentationDetent = .height(126)
+    @State private var locksSearchSheetToSummary = false
     @State private var searchExpanded = false
     @State private var resultSheetExpanded = false
     @State private var visualizeTemperature = false
@@ -116,7 +117,7 @@ struct JellyMapView: View {
         .sheet(isPresented: $searchSheetPresented) {
             systemSearchSheet
                 .presentationDetents(
-                    [Self.collapsedSearchDetent, Self.resultSearchDetent, Self.expandedSearchDetent],
+                    availableSearchSheetDetents,
                     selection: $searchSheetDetent
                 )
                 .presentationDragIndicator(.hidden)
@@ -327,6 +328,7 @@ struct JellyMapView: View {
         // the previous expanded height.
         searchSheetPresented = false
         if let selected = model.selectedBeach {
+            locksSearchSheetToSummary = true
             model.searchText = selected.searchDisplayName
             mapPosition = model.position
             searchFocused = false
@@ -334,6 +336,7 @@ struct JellyMapView: View {
             resultSheetExpanded = true
             searchSheetDetent = Self.resultSearchDetent
         } else {
+            locksSearchSheetToSummary = false
             collapseSearchSheet(clearSelection: true)
         }
         // Wait until the full-screen cover dismissal animation has completed.
@@ -342,13 +345,14 @@ struct JellyMapView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
             searchSheetPresented = true
             if model.selectedBeach != nil {
-                // Let the new presentation controller enter the hierarchy before
-                // selecting its initial detent.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                // The replacement sheet initially exposes only the summary
+                // detent, so UIKit cannot restore the former expanded height.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     searchFocused = false
                     searchExpanded = false
                     resultSheetExpanded = true
                     searchSheetDetent = Self.resultSearchDetent
+                    locksSearchSheetToSummary = false
                 }
             }
         }
@@ -459,6 +463,13 @@ struct JellyMapView: View {
         detent == Self.expandedSearchDetent
             && model.searchText.isEmpty
             && model.selectedBeach == nil
+    }
+
+    private var availableSearchSheetDetents: Set<PresentationDetent> {
+        if locksSearchSheetToSummary {
+            return [Self.resultSearchDetent]
+        }
+        return [Self.collapsedSearchDetent, Self.resultSearchDetent, Self.expandedSearchDetent]
     }
 
     private func focusSearchFieldAfterSheetSettles() {
