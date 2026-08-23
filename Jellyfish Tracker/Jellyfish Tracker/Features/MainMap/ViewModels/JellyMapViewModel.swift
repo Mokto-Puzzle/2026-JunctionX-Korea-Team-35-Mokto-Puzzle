@@ -255,9 +255,20 @@ final class JellyMapViewModel: ObservableObject {
     }
 
     func risk(for beach: Beach) -> RiskLevel {
-        guard let impact = supportedImpactProbability(for: beach) else { return beach.baseRisk }
-        if impact >= 0.55 { return .later }
-        if impact >= 0.18 { return max(beach.baseRisk, .caution) }
+        let baseline = regionalBaselineRisk(for: beach)
+        guard let impact = supportedImpactProbability(for: beach) else { return baseline }
+        if impact >= 0.25 { return .later }
+        if impact >= 0.08 { return max(baseline, .caution) }
+        return baseline
+    }
+
+    private func regionalBaselineRisk(for beach: Beach) -> RiskLevel {
+        // NIFS density is regional rather than beach-exact. Keep it as a caution
+        // baseline and reserve red for modeled particle presence at this beach.
+        if beach.baseRisk == .later,
+           beach.provenance(for: .baseRisk).quality == .derived {
+            return .caution
+        }
         return beach.baseRisk
     }
 
@@ -298,10 +309,10 @@ final class JellyMapViewModel: ObservableObject {
         var contributingTrackCount = 0
         let evaluationHour = Double(key.hour)
         for track in tracks {
-            guard let trackProbability = track.entryFraction(
+            guard let trackProbability = track.presenceFraction(
                 near: beach.coordinate,
                 radius: influenceRadius,
-                upTo: evaluationHour
+                at: evaluationHour
             ) else { continue }
             contributingTrackCount += 1
             noImpactProbability *= 1 - trackProbability
