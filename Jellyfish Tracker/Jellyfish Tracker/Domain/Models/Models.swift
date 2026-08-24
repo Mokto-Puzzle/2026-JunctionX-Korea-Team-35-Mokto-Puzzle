@@ -539,6 +539,36 @@ struct JellyfishTrack: Identifiable, Hashable {
         return Double(entered.count) / Double(activeIDs.count)
     }
 
+    func presenceFraction(
+        near coordinate: CLLocationCoordinate2D,
+        radius: CLLocationDistance,
+        at hour: Double
+    ) -> Double? {
+        guard hour >= 0, radius > 0 else { return nil }
+        let referenceIDs = referenceParticleIDs
+        let frame = rawParticles(at: hour)
+        guard !referenceIDs.isEmpty,
+              let coverage = activeParticleCoverage(at: hour),
+              coverage >= Self.minimumSupportedParticleCoverage else { return nil }
+        let activeIDs = activeParticleIDs(in: frame, relativeTo: referenceIDs)
+        guard !activeIDs.isEmpty else { return nil }
+
+        let latitudeMeters = 111_132.0
+        let longitudeMeters = 111_320.0 * cos(coordinate.latitude * .pi / 180)
+        let radiusSquared = radius * radius
+        var nearbyCount = 0
+        for (index, particle) in frame.enumerated() {
+            let id = particle.id >= 0 ? particle.id : index
+            guard activeIDs.contains(id), !particle.isInactive else { continue }
+            let north = (particle.coordinate.latitude - coordinate.latitude) * latitudeMeters
+            guard abs(north) <= radius else { continue }
+            let east = (particle.coordinate.longitude - coordinate.longitude) * longitudeMeters
+            guard abs(east) <= radius else { continue }
+            if north * north + east * east <= radiusSquared { nearbyCount += 1 }
+        }
+        return Double(nearbyCount) / Double(activeIDs.count)
+    }
+
     private var referenceParticleIDs: Set<Int> {
         guard let referenceHour = particleSnapshots.keys.filter({ $0 >= 0 }).min(),
               let particles = particleSnapshots[referenceHour] else { return [] }

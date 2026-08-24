@@ -15,6 +15,7 @@ struct JellyMapView: View {
     @State private var showLayerMenu = false
     @State private var searchSheetPresented = true
     @State private var searchSheetDetent: PresentationDetent = .height(126)
+    @State private var locksSearchSheetToSummary = false
     @State private var searchExpanded = false
     @State private var resultSheetExpanded = false
     @State private var visualizeTemperature = false
@@ -98,12 +99,8 @@ struct JellyMapView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $showComparison, onDismiss: resetAfterComparison) {
+        .fullScreenCover(isPresented: $showComparison, onDismiss: restoreAfterComparison) {
             NearbyComparisonView(model: model, userCoordinate: location.coordinate)
-        }
-        .onChange(of: showComparison) { _, isPresented in
-            guard !isPresented else { return }
-            resetAfterComparison()
         }
         .onChange(of: model.searchText) { _, newValue in
             guard searchFocused else { return }
@@ -120,7 +117,7 @@ struct JellyMapView: View {
         .sheet(isPresented: $searchSheetPresented) {
             systemSearchSheet
                 .presentationDetents(
-                    [Self.collapsedSearchDetent, Self.resultSearchDetent, Self.expandedSearchDetent],
+                    availableSearchSheetDetents,
                     selection: $searchSheetDetent
                 )
                 .presentationDragIndicator(.hidden)
@@ -325,13 +322,39 @@ struct JellyMapView: View {
         showComparison = true
     }
 
-    private func resetAfterComparison() {
-        collapseSearchSheet(clearSelection: true)
-        DispatchQueue.main.async {
+    private func restoreAfterComparison() {
+        // Recreate the system sheet after the full-screen transition. Updating only
+        // its detent while it was covered could leave UIKit's sheet controller at
+        // the previous expanded height.
+        searchSheetPresented = false
+        if let selected = model.selectedBeach {
+            locksSearchSheetToSummary = true
+            model.searchText = selected.searchDisplayName
+            mapPosition = model.position
+            searchFocused = false
+            searchExpanded = false
+            resultSheetExpanded = true
+            searchSheetDetent = Self.resultSearchDetent
+        } else {
+            locksSearchSheetToSummary = false
             collapseSearchSheet(clearSelection: true)
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            collapseSearchSheet(clearSelection: true)
+        // Wait until the full-screen cover dismissal animation has completed.
+        // Re-presenting the sheet during that transition lets UIKit restore the
+        // old expanded detent even though SwiftUI already holds the summary one.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            searchSheetPresented = true
+            if model.selectedBeach != nil {
+                // The replacement sheet initially exposes only the summary
+                // detent, so UIKit cannot restore the former expanded height.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    searchFocused = false
+                    searchExpanded = false
+                    resultSheetExpanded = true
+                    searchSheetDetent = Self.resultSearchDetent
+                    locksSearchSheetToSummary = false
+                }
+            }
         }
     }
 
@@ -440,6 +463,13 @@ struct JellyMapView: View {
         detent == Self.expandedSearchDetent
             && model.searchText.isEmpty
             && model.selectedBeach == nil
+    }
+
+    private var availableSearchSheetDetents: Set<PresentationDetent> {
+        if locksSearchSheetToSummary {
+            return [Self.resultSearchDetent]
+        }
+        return [Self.collapsedSearchDetent, Self.resultSearchDetent, Self.expandedSearchDetent]
     }
 
     private func focusSearchFieldAfterSheetSettles() {

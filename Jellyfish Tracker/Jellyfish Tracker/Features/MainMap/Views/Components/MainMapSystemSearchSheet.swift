@@ -270,9 +270,13 @@ private struct BeachActivityChip: View {
 
     var body: some View {
         Text(title)
-            .font(.custom("Helvetica", size: 14, relativeTo: .caption))
+            .font(.custom("Helvetica", size: 13, relativeTo: .caption))
             .foregroundStyle(foreground)
-            .padding(.horizontal, 11)
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
+            .allowsTightening(true)
+            .padding(.horizontal, 6)
+            .frame(maxWidth: .infinity)
             .frame(height: 31)
             .background(fill, in: .capsule)
     }
